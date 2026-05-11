@@ -1,6 +1,7 @@
 // ===== Hantavirus - Pantalla 1 =====
 
 const priscilo    = document.getElementById('priscilo');
+const background  = document.getElementById('background');
 const startScreen = document.getElementById('start-screen');
 const playButton  = document.getElementById('play-button');
 const hud         = document.getElementById('hud');
@@ -23,13 +24,9 @@ const MUSIC_VOLUME     = 0.4;
 const CLICK_SOUND_SRC  = 'elements/sounds/playsound.mp3';
 const CLICK_VOLUME     = 0.6;
 
-// Retardo entre el click de Play y el inicio de la música (ms).
 const MUSIC_START_DELAY = 1000;
-
-// Loop manual: reiniciar la música al llegar a este segundo,
-// y volver a este otro segundo, para evitar la cola silenciosa del MP3.
-const MUSIC_LOOP_END   = 28.0;   // segundos
-const MUSIC_LOOP_START = 0.0;    // segundos
+const MUSIC_LOOP_END    = 28.0;
+const MUSIC_LOOP_START  = 0.0;
 // =============================
 
 // --- Sprites ---
@@ -41,7 +38,6 @@ const SPRITE_WALK = [
   'elements/img/priscilom4.png'
 ];
 
-// Precarga
 SPRITE_WALK.forEach(src => {
   const img = new Image();
   img.src = src;
@@ -49,7 +45,7 @@ SPRITE_WALK.forEach(src => {
 
 // --- Estado ---
 const state = {
-  x: 100,
+  x: 0,
   y: 0,
   width: PLAYER_MIN_WIDTH,
   height: PLAYER_MIN_WIDTH,
@@ -59,23 +55,23 @@ const state = {
   facing: 1
 };
 
+// Offset acumulado del fondo. Negativo = el mundo se desplaza a la izquierda
+// (Priscilo avanza hacia la derecha del pasillo).
+let backgroundOffsetX = 0;
+
 let gameStarted = false;
 
-// --- Audio (no se reproduce hasta pulsar Play) ---
+// --- Audio ---
 const bgMusic = new Audio(MUSIC_SRC);
-bgMusic.loop    = false;          // loop manual, no nativo
+bgMusic.loop    = false;
 bgMusic.volume  = MUSIC_VOLUME;
 bgMusic.preload = 'auto';
 
-// Loop manual: al llegar a MUSIC_LOOP_END, saltar a MUSIC_LOOP_START
 bgMusic.addEventListener('timeupdate', () => {
   if (bgMusic.currentTime >= MUSIC_LOOP_END) {
     bgMusic.currentTime = MUSIC_LOOP_START;
   }
 });
-
-// Plan B: si el archivo es más corto de MUSIC_LOOP_END y termina antes,
-// rearrancamos manualmente desde el inicio.
 bgMusic.addEventListener('ended', () => {
   bgMusic.currentTime = MUSIC_LOOP_START;
   bgMusic.play().catch(() => {});
@@ -100,10 +96,8 @@ function measureSpriteHeight() {
   if (h > 0) state.height = h;
 }
 
-function clampX() {
-  const maxX = window.innerWidth - state.width;
-  if (state.x < 0) state.x = 0;
-  if (state.x > maxX) state.x = maxX;
+function centerPriscilo() {
+  state.x = (window.innerWidth - state.width) / 2;
 }
 
 function applyPlayerSize() {
@@ -113,17 +107,17 @@ function applyPlayerSize() {
   requestAnimationFrame(() => {
     measureSpriteHeight();
     state.y = getFloorY();
-    clampX();
+    centerPriscilo();
   });
 }
 
-// --- Inicialización del tamaño al cargar ---
 function initSize() {
   applyPlayerSize();
   if (!priscilo.complete || priscilo.naturalHeight === 0) {
     priscilo.addEventListener('load', () => {
       measureSpriteHeight();
       state.y = getFloorY();
+      centerPriscilo();
     }, { once: true });
   }
 }
@@ -155,19 +149,17 @@ window.addEventListener('resize', () => {
   applyPlayerSize();
 });
 
-// --- Botón Play: arranca juego, sonido de click y música (con retardo) ---
+// --- Botón Play ---
 playButton.addEventListener('click', () => {
   startScreen.classList.add('hidden');
   hud.classList.remove('hidden');
   gameStarted = true;
 
-  // Sonido de click inmediato
   clickSound.currentTime = 0;
   clickSound.play().catch(err => {
     console.warn('No se pudo reproducir el sonido de click:', err);
   });
 
-  // Música de fondo con retardo de ~1s
   setTimeout(() => {
     bgMusic.currentTime = MUSIC_LOOP_START;
     bgMusic.play().catch(err => {
@@ -192,6 +184,7 @@ function loop(now) {
   const delta = now - lastTime;
   lastTime = now;
 
+  // Input
   let dx = 0;
   if (gameStarted) {
     if (keys.ArrowLeft)  dx -= SPEED;
@@ -200,16 +193,25 @@ function loop(now) {
 
   const moving = dx !== 0;
 
+  // Dirección para el flip
   if (dx < 0) state.facing = -1;
   else if (dx > 0) state.facing = 1;
 
-  state.x += dx;
-  clampX();
+  // Movemos el mundo en sentido contrario al movimiento del jugador
+  backgroundOffsetX -= dx;
 
+  // Priscilo permanece centrado
+  centerPriscilo();
+
+  // Aplicar posición de Priscilo
   priscilo.style.left = state.x + 'px';
   priscilo.style.top  = state.y + 'px';
   priscilo.style.transform = `scaleX(${state.facing})`;
 
+  // Aplicar scroll del fondo
+  background.style.backgroundPositionX = backgroundOffsetX + 'px';
+
+  // Animación
   if (moving) {
     state.frameTimer += delta;
     if (state.frameTimer >= FRAME_INTERVAL) {

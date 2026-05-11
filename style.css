@@ -20,19 +20,22 @@ html, body {
   background: #000;
 }
 
-/* Fondo: ocupa pantalla completa SIN deformarse */
+/* Fondo: tile horizontal infinito */
 #background {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  object-position: center center;
+  background-image: url("elements/img/background1.png");
+  background-repeat: repeat-x;
+  background-size: auto 100%;
+  background-position: 0 center;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
   z-index: 0;
   pointer-events: none;
-  user-select: none;
-  -webkit-user-drag: none;
 }
 
 /* Personaje: ancho lo fija el JS, alto automático para respetar proporción */
