@@ -31,6 +31,8 @@ const MUSIC_SRC        = 'elements/sounds/hantasound.mp3';
 const MUSIC_VOLUME     = 0.4;
 const CLICK_SOUND_SRC  = 'elements/sounds/playsound.mp3';
 const CLICK_VOLUME     = 0.6;
+const STEPS_SRC        = 'elements/sounds/steps.mp3';
+const STEPS_VOLUME     = 0.5;
 
 const MUSIC_START_DELAY = 1000;
 const MUSIC_LOOP_END    = 28.0;
@@ -90,6 +92,27 @@ bgMusic.addEventListener('ended', () => {
 const clickSound = new Audio(CLICK_SOUND_SRC);
 clickSound.volume  = CLICK_VOLUME;
 clickSound.preload = 'auto';
+
+// Sonido de pasos: una sola instancia, loop, control manual de play/pause
+const stepsAudio = new Audio(STEPS_SRC);
+stepsAudio.loop    = true;
+stepsAudio.volume  = STEPS_VOLUME;
+stepsAudio.preload = 'auto';
+
+function startSteps() {
+  if (stepsAudio.paused) {
+    stepsAudio.play().catch(err => {
+      console.warn('No se pudo reproducir el sonido de pasos:', err);
+    });
+  }
+}
+
+function stopSteps() {
+  if (!stepsAudio.paused) {
+    stepsAudio.pause();
+    stepsAudio.currentTime = 0;
+  }
+}
 
 // --- Helpers ---
 function computePlayerWidth() {
@@ -256,12 +279,12 @@ function loop(now) {
   priscilo.style.transform = `scaleX(${state.facing})`;
   background.style.backgroundPositionX = backgroundOffsetX + 'px';
 
-  // Sprite / animación
+  // Sprite / animación + sonido de pasos
   if (crouching) {
-    // Agachado: sprite fijo, sin animación
     state.frameTimer = 0;
     state.frame = 0;
     setSprite(SPRITE_CROUCH);
+    stopSteps();                  // agachado: nunca suena
   } else if (moving) {
     state.frameTimer += delta;
     if (state.frameTimer >= FRAME_INTERVAL) {
@@ -269,10 +292,12 @@ function loop(now) {
       state.frame = (state.frame + 1) % SPRITE_WALK.length;
       setSprite(SPRITE_WALK[state.frame]);
     }
+    startSteps();                 // caminando: arranca si no estaba ya
   } else {
     state.frameTimer = 0;
     state.frame = 0;
     setSprite(SPRITE_IDLE);
+    stopSteps();                  // quieto: para
   }
 
   requestAnimationFrame(loop);
