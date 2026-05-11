@@ -9,14 +9,22 @@ const hud         = document.getElementById('hud');
 // =============================
 //  CONSTANTES AJUSTABLES
 // =============================
-const FLOOR_Y_RATIO = 0.68;
+const FLOOR_Y_RATIO = 0.62;
 
-const PLAYER_WIDTH_VW  = 8;
-const PLAYER_MIN_WIDTH = 72;
-const PLAYER_MAX_WIDTH = 150;
+const PLAYER_WIDTH_VW  = 10;
+const PLAYER_MIN_WIDTH = 90;
+const PLAYER_MAX_WIDTH = 190;
 
-const SPEED = 4;
+const SPEED = 4;              // velocidad de Priscilo dentro de la dead zone
+const WORLD_SCROLL_SPEED = 4; // velocidad de scroll del fondo cuando Priscilo
+                              // empuja contra el borde de la dead zone
+
 const FRAME_INTERVAL = 120;
+
+// Dead zone: franja central donde Priscilo se mueve antes de que el mundo
+// empiece a desplazarse. Valores como proporción del ancho del viewport.
+const DEAD_ZONE_LEFT_RATIO  = 0.42;
+const DEAD_ZONE_RIGHT_RATIO = 0.58;
 
 // Audio
 const MUSIC_SRC        = 'elements/sounds/hantasound.mp3';
@@ -96,6 +104,13 @@ function measureSpriteHeight() {
   if (h > 0) state.height = h;
 }
 
+function getDeadZoneLeft() {
+  return window.innerWidth * DEAD_ZONE_LEFT_RATIO;
+}
+function getDeadZoneRight() {
+  return window.innerWidth * DEAD_ZONE_RIGHT_RATIO - state.width;
+}
+
 function centerPriscilo() {
   state.x = (window.innerWidth - state.width) / 2;
 }
@@ -107,7 +122,10 @@ function applyPlayerSize() {
   requestAnimationFrame(() => {
     measureSpriteHeight();
     state.y = getFloorY();
-    centerPriscilo();
+    const left  = getDeadZoneLeft();
+    const right = getDeadZoneRight();
+    if (state.x < left)  state.x = left;
+    if (state.x > right) state.x = right;
   });
 }
 
@@ -119,6 +137,8 @@ function initSize() {
       state.y = getFloorY();
       centerPriscilo();
     }, { once: true });
+  } else {
+    requestAnimationFrame(centerPriscilo);
   }
 }
 
@@ -193,22 +213,35 @@ function loop(now) {
 
   const moving = dx !== 0;
 
-  // Dirección para el flip
+  // Flip
   if (dx < 0) state.facing = -1;
   else if (dx > 0) state.facing = 1;
 
-  // Movemos el mundo en sentido contrario al movimiento del jugador
-  backgroundOffsetX -= dx;
+  // Movimiento con dead zone
+  const deadLeft  = getDeadZoneLeft();
+  const deadRight = getDeadZoneRight();
 
-  // Priscilo permanece centrado
-  centerPriscilo();
+  let nextX = state.x + dx;
+  let scroll = 0;
 
-  // Aplicar posición de Priscilo
+  if (nextX < deadLeft) {
+    scroll = nextX - deadLeft;
+    nextX = deadLeft;
+  } else if (nextX > deadRight) {
+    scroll = nextX - deadRight;
+    nextX = deadRight;
+  }
+
+  state.x = nextX;
+
+  if (scroll !== 0 && SPEED !== 0) {
+    backgroundOffsetX -= scroll * (WORLD_SCROLL_SPEED / SPEED);
+  }
+
+  // Aplicar
   priscilo.style.left = state.x + 'px';
   priscilo.style.top  = state.y + 'px';
   priscilo.style.transform = `scaleX(${state.facing})`;
-
-  // Aplicar scroll del fondo
   background.style.backgroundPositionX = backgroundOffsetX + 'px';
 
   // Animación

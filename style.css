@@ -29,7 +29,7 @@ html, body {
   height: 100%;
   background-image: url("elements/img/background1.png");
   background-repeat: repeat-x;
-  background-size: auto 100%;
+  background-size: auto 115%;
   background-position: 0 center;
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
