@@ -5,6 +5,7 @@ const background  = document.getElementById('background');
 const startScreen = document.getElementById('start-screen');
 const playButton  = document.getElementById('play-button');
 const hud         = document.getElementById('hud');
+const rat         = document.getElementById('rat');
 
 // =============================
 //  CONSTANTES AJUSTABLES
@@ -15,16 +16,22 @@ const PLAYER_WIDTH_VW  = 10;
 const PLAYER_MIN_WIDTH = 160;
 const PLAYER_MAX_WIDTH = 160;
 
-const SPEED = 4;              // velocidad de Priscilo dentro de la dead zone
-const WORLD_SCROLL_SPEED = 4; // velocidad de scroll del fondo cuando Priscilo
-                              // empuja contra el borde de la dead zone
-
+const SPEED = 4;
+const WORLD_SCROLL_SPEED = 4;
 const FRAME_INTERVAL = 120;
 
-// Dead zone: franja central donde Priscilo se mueve antes de que el mundo
-// empiece a desplazarse. Valores como proporción del ancho del viewport.
 const DEAD_ZONE_LEFT_RATIO  = 0.42;
 const DEAD_ZONE_RIGHT_RATIO = 0.58;
+
+// Rata
+const RAT_WIDTH_VW       = 4;
+const RAT_MIN_WIDTH      = 100;
+const RAT_MAX_WIDTH      = 100;
+const RAT_FLOOR_Y_RATIO  = 0.78;
+const RAT_SPEED          = 3;
+const RAT_FRAME_INTERVAL = 150;
+const RAT_RESPAWN_MIN    = 200;   // offset mínimo a la derecha de la pantalla
+const RAT_RESPAWN_RANGE  = 400;   // rango aleatorio extra
 
 // Audio
 const MUSIC_SRC        = 'elements/sounds/hantasound.mp3';
@@ -49,13 +56,18 @@ const SPRITE_WALK = [
   'elements/img/priscilom4.png'
 ];
 
-// Precarga (incluyendo el sprite de agacharse)
-[...SPRITE_WALK, SPRITE_CROUCH].forEach(src => {
+const RAT_SPRITES = [
+  'elements/img/rata1.png',
+  'elements/img/rata2.png'
+];
+
+// Precarga
+[...SPRITE_WALK, SPRITE_CROUCH, ...RAT_SPRITES].forEach(src => {
   const img = new Image();
   img.src = src;
 });
 
-// --- Estado ---
+// --- Estado del jugador ---
 const state = {
   x: 0,
   y: 0,
@@ -67,10 +79,18 @@ const state = {
   facing: 1
 };
 
-// Offset acumulado del fondo. Negativo = el mundo se desplaza a la izquierda
-// (Priscilo avanza hacia la derecha del pasillo).
-let backgroundOffsetX = 0;
+// --- Estado de la rata ---
+const ratState = {
+  x: 0,
+  y: 0,
+  width: RAT_MIN_WIDTH,
+  height: RAT_MIN_WIDTH,
+  frame: 0,
+  frameTimer: 0,
+  currentSrc: RAT_SPRITES[0]
+};
 
+let backgroundOffsetX = 0;
 let gameStarted = false;
 
 // --- Audio ---
@@ -93,7 +113,6 @@ const clickSound = new Audio(CLICK_SOUND_SRC);
 clickSound.volume  = CLICK_VOLUME;
 clickSound.preload = 'auto';
 
-// Sonido de pasos: una sola instancia, loop, control manual de play/pause
 const stepsAudio = new Audio(STEPS_SRC);
 stepsAudio.loop    = true;
 stepsAudio.volume  = STEPS_VOLUME;
@@ -114,7 +133,7 @@ function stopSteps() {
   }
 }
 
-// --- Helpers ---
+// --- Helpers Priscilo ---
 function computePlayerWidth() {
   const raw = window.innerWidth * (PLAYER_WIDTH_VW / 100);
   return Math.max(PLAYER_MIN_WIDTH, Math.min(PLAYER_MAX_WIDTH, raw));
@@ -169,6 +188,48 @@ function initSize() {
 
 initSize();
 
+// --- Helpers Rata ---
+function computeRatWidth() {
+  const raw = window.innerWidth * (RAT_WIDTH_VW / 100);
+  return Math.max(RAT_MIN_WIDTH, Math.min(RAT_MAX_WIDTH, raw));
+}
+
+function getRatFloorY() {
+  return window.innerHeight * RAT_FLOOR_Y_RATIO - ratState.height;
+}
+
+function measureRatHeight() {
+  const h = rat.offsetHeight;
+  if (h > 0) ratState.height = h;
+}
+
+function spawnRatRight() {
+  ratState.x = window.innerWidth + RAT_RESPAWN_MIN + Math.random() * RAT_RESPAWN_RANGE;
+}
+
+function applyRatSize() {
+  ratState.width = computeRatWidth();
+  rat.style.width = ratState.width + 'px';
+
+  requestAnimationFrame(() => {
+    measureRatHeight();
+    ratState.y = getRatFloorY();
+  });
+}
+
+function initRat() {
+  applyRatSize();
+  spawnRatRight();
+  if (!rat.complete || rat.naturalHeight === 0) {
+    rat.addEventListener('load', () => {
+      measureRatHeight();
+      ratState.y = getRatFloorY();
+    }, { once: true });
+  }
+}
+
+initRat();
+
 // --- Teclas ---
 const keys = {
   ArrowLeft: false,
@@ -193,6 +254,7 @@ window.addEventListener('keyup', (e) => {
 // --- Resize ---
 window.addEventListener('resize', () => {
   applyPlayerSize();
+  applyRatSize();
 });
 
 // --- Botón Play ---
@@ -214,9 +276,7 @@ playButton.addEventListener('click', () => {
   }, MUSIC_START_DELAY);
 });
 
-// --- Cambio de sprite ---
-// El sprite de agacharse puede tener distinta altura que los de caminar,
-// así que re-medimos y re-anclamos al suelo para que los pies queden bien.
+// --- Cambio de sprite Priscilo ---
 function setSprite(src) {
   if (state.currentSrc !== src) {
     priscilo.src = src;
@@ -228,6 +288,18 @@ function setSprite(src) {
   }
 }
 
+// --- Cambio de sprite Rata ---
+function setRatSprite(src) {
+  if (ratState.currentSrc !== src) {
+    rat.src = src;
+    ratState.currentSrc = src;
+    requestAnimationFrame(() => {
+      measureRatHeight();
+      ratState.y = getRatFloorY();
+    });
+  }
+}
+
 // --- Bucle principal ---
 let lastTime = performance.now();
 
@@ -235,10 +307,9 @@ function loop(now) {
   const delta = now - lastTime;
   lastTime = now;
 
-  // Input
+  // ===== JUGADOR =====
   const crouching = gameStarted && keys.ArrowDown;
 
-  // Si está agachado, ignoramos izquierda/derecha (no se mueve ni scrollea)
   let dx = 0;
   if (gameStarted && !crouching) {
     if (keys.ArrowLeft)  dx -= SPEED;
@@ -247,12 +318,9 @@ function loop(now) {
 
   const moving = dx !== 0;
 
-  // Flip: solo se actualiza si hay movimiento lateral.
-  // Al agacharse mantiene la última dirección horizontal.
   if (dx < 0) state.facing = -1;
   else if (dx > 0) state.facing = 1;
 
-  // Movimiento con dead zone
   const deadLeft  = getDeadZoneLeft();
   const deadRight = getDeadZoneRight();
 
@@ -273,18 +341,17 @@ function loop(now) {
     backgroundOffsetX -= scroll * (WORLD_SCROLL_SPEED / SPEED);
   }
 
-  // Aplicar posición y flip
   priscilo.style.left = state.x + 'px';
   priscilo.style.top  = state.y + 'px';
   priscilo.style.transform = `scaleX(${state.facing})`;
   background.style.backgroundPositionX = backgroundOffsetX + 'px';
 
-  // Sprite / animación + sonido de pasos
+  // Sprite + sonido de pasos
   if (crouching) {
     state.frameTimer = 0;
     state.frame = 0;
     setSprite(SPRITE_CROUCH);
-    stopSteps();                  // agachado: nunca suena
+    stopSteps();
   } else if (moving) {
     state.frameTimer += delta;
     if (state.frameTimer >= FRAME_INTERVAL) {
@@ -292,13 +359,34 @@ function loop(now) {
       state.frame = (state.frame + 1) % SPRITE_WALK.length;
       setSprite(SPRITE_WALK[state.frame]);
     }
-    startSteps();                 // caminando: arranca si no estaba ya
+    startSteps();
   } else {
     state.frameTimer = 0;
     state.frame = 0;
     setSprite(SPRITE_IDLE);
-    stopSteps();                  // quieto: para
+    stopSteps();
   }
+
+  // ===== RATA =====
+  if (gameStarted) {
+    ratState.x -= RAT_SPEED;
+
+    // Si ha salido por la izquierda, vuelve a aparecer por la derecha
+    if (ratState.x < -ratState.width) {
+      spawnRatRight();
+    }
+
+    // Animación de la rata
+    ratState.frameTimer += delta;
+    if (ratState.frameTimer >= RAT_FRAME_INTERVAL) {
+      ratState.frameTimer = 0;
+      ratState.frame = (ratState.frame + 1) % RAT_SPRITES.length;
+      setRatSprite(RAT_SPRITES[ratState.frame]);
+    }
+  }
+
+  rat.style.left = ratState.x + 'px';
+  rat.style.top  = ratState.y + 'px';
 
   requestAnimationFrame(loop);
 }
