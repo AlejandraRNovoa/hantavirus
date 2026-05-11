@@ -38,7 +38,7 @@ html, body {
   pointer-events: none;
 }
 
-/* Personaje: ancho lo fija el JS, alto automático para respetar proporción */
+/* Personaje */
 #priscilo {
   position: absolute;
   height: auto;
@@ -46,6 +46,16 @@ html, body {
   user-select: none;
   -webkit-user-drag: none;
   transform-origin: center bottom;
+}
+
+#priscilo.invulnerable {
+  animation: blink 0.15s steps(2, start) infinite;
+}
+
+@keyframes blink {
+  to {
+    opacity: 0.2;
+  }
 }
 
 /* Rata enemiga */
@@ -124,6 +134,34 @@ html, body {
 
 #play-button:active {
   transform: scale(0.98);
+}
+
+/* ===== Game Over ===== */
+#game-over {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+}
+
+#game-over.hidden {
+  display: none;
+}
+
+.game-over-text {
+  color: #d83a3a;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: clamp(40px, 9vw, 140px);
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 12px rgba(216, 58, 58, 0.6);
 }
 
 /* Pixel art: sin blur, sin suavizado */

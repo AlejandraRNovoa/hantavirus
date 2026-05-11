@@ -6,6 +6,8 @@ const startScreen = document.getElementById('start-screen');
 const playButton  = document.getElementById('play-button');
 const hud         = document.getElementById('hud');
 const rat         = document.getElementById('rat');
+const gameOverEl  = document.getElementById('game-over');
+const lifeIcons   = document.querySelectorAll('#hud .life');
 
 // =============================
 //  CONSTANTES AJUSTABLES
@@ -30,8 +32,12 @@ const RAT_MAX_WIDTH      = 100;
 const RAT_FLOOR_Y_RATIO  = 0.78;
 const RAT_SPEED          = 3;
 const RAT_FRAME_INTERVAL = 150;
-const RAT_RESPAWN_MIN    = 200;   // offset mínimo a la derecha de la pantalla
-const RAT_RESPAWN_RANGE  = 400;   // rango aleatorio extra
+const RAT_RESPAWN_MIN    = 200;
+const RAT_RESPAWN_RANGE  = 400;
+
+// Vidas / daño
+const START_LIVES        = 3;
+const INVULN_DURATION_MS = 1000;
 
 // Audio
 const MUSIC_SRC        = 'elements/sounds/hantasound.mp3';
@@ -40,6 +46,8 @@ const CLICK_SOUND_SRC  = 'elements/sounds/playsound.mp3';
 const CLICK_VOLUME     = 0.6;
 const STEPS_SRC        = 'elements/sounds/steps.mp3';
 const STEPS_VOLUME     = 0.5;
+const OUCH_SRC         = 'elements/sounds/ouch.mp3';
+const OUCH_VOLUME      = 0.7;
 
 const MUSIC_START_DELAY = 1000;
 const MUSIC_LOOP_END    = 28.0;
@@ -92,6 +100,11 @@ const ratState = {
 
 let backgroundOffsetX = 0;
 let gameStarted = false;
+let gameOver    = false;
+
+// Vidas e invulnerabilidad
+let lives = START_LIVES;
+let invulnerableUntil = 0;
 
 // --- Audio ---
 const bgMusic = new Audio(MUSIC_SRC);
@@ -105,6 +118,7 @@ bgMusic.addEventListener('timeupdate', () => {
   }
 });
 bgMusic.addEventListener('ended', () => {
+  if (gameOver) return;
   bgMusic.currentTime = MUSIC_LOOP_START;
   bgMusic.play().catch(() => {});
 });
@@ -132,6 +146,10 @@ function stopSteps() {
     stepsAudio.currentTime = 0;
   }
 }
+
+const ouchAudio = new Audio(OUCH_SRC);
+ouchAudio.volume  = OUCH_VOLUME;
+ouchAudio.preload = 'auto';
 
 // --- Helpers Priscilo ---
 function computePlayerWidth() {
@@ -230,6 +248,52 @@ function initRat() {
 
 initRat();
 
+// --- HUD ---
+function updateHud() {
+  lifeIcons.forEach((icon, idx) => {
+    icon.style.display = (idx < lives) ? '' : 'none';
+  });
+}
+
+// --- Colisión AABB usando getBoundingClientRect ---
+function checkCollision() {
+  const a = priscilo.getBoundingClientRect();
+  const b = rat.getBoundingClientRect();
+  return !(a.right  < b.left  ||
+           a.left   > b.right ||
+           a.bottom < b.top   ||
+           a.top    > b.bottom);
+}
+
+// --- Daño / Game Over ---
+function takeDamage(now) {
+  lives -= 1;
+  updateHud();
+  invulnerableUntil = now + INVULN_DURATION_MS;
+  priscilo.classList.add('invulnerable');
+
+  // Sonido de daño (una vez por golpe; reset por si llegan golpes muy seguidos)
+  ouchAudio.currentTime = 0;
+  ouchAudio.play().catch(err => {
+    console.warn('No se pudo reproducir el sonido de daño:', err);
+  });
+
+  // Reposiciona la rata fuera de pantalla para evitar segundo golpe inmediato
+  spawnRatRight();
+
+  if (lives <= 0) {
+    triggerGameOver();
+  }
+}
+
+function triggerGameOver() {
+  gameOver = true;
+  stopSteps();
+  bgMusic.pause();
+  priscilo.classList.remove('invulnerable');
+  if (gameOverEl) gameOverEl.classList.remove('hidden');
+}
+
 // --- Teclas ---
 const keys = {
   ArrowLeft: false,
@@ -262,6 +326,7 @@ playButton.addEventListener('click', () => {
   startScreen.classList.add('hidden');
   hud.classList.remove('hidden');
   gameStarted = true;
+  updateHud();
 
   clickSound.currentTime = 0;
   clickSound.play().catch(err => {
@@ -307,11 +372,16 @@ function loop(now) {
   const delta = now - lastTime;
   lastTime = now;
 
+  // Quitar parpadeo cuando expira la invulnerabilidad
+  if (priscilo.classList.contains('invulnerable') && now >= invulnerableUntil && !gameOver) {
+    priscilo.classList.remove('invulnerable');
+  }
+
   // ===== JUGADOR =====
-  const crouching = gameStarted && keys.ArrowDown;
+  const crouching = gameStarted && !gameOver && keys.ArrowDown;
 
   let dx = 0;
-  if (gameStarted && !crouching) {
+  if (gameStarted && !gameOver && !crouching) {
     if (keys.ArrowLeft)  dx -= SPEED;
     if (keys.ArrowRight) dx += SPEED;
   }
@@ -347,7 +417,10 @@ function loop(now) {
   background.style.backgroundPositionX = backgroundOffsetX + 'px';
 
   // Sprite + sonido de pasos
-  if (crouching) {
+  if (gameOver) {
+    setSprite(SPRITE_IDLE);
+    stopSteps();
+  } else if (crouching) {
     state.frameTimer = 0;
     state.frame = 0;
     setSprite(SPRITE_CROUCH);
@@ -368,15 +441,13 @@ function loop(now) {
   }
 
   // ===== RATA =====
-  if (gameStarted) {
+  if (gameStarted && !gameOver) {
     ratState.x -= RAT_SPEED;
 
-    // Si ha salido por la izquierda, vuelve a aparecer por la derecha
     if (ratState.x < -ratState.width) {
       spawnRatRight();
     }
 
-    // Animación de la rata
     ratState.frameTimer += delta;
     if (ratState.frameTimer >= RAT_FRAME_INTERVAL) {
       ratState.frameTimer = 0;
@@ -387,6 +458,13 @@ function loop(now) {
 
   rat.style.left = ratState.x + 'px';
   rat.style.top  = ratState.y + 'px';
+
+  // ===== COLISIÓN =====
+  if (gameStarted && !gameOver && now >= invulnerableUntil) {
+    if (checkCollision()) {
+      takeDamage(now);
+    }
+  }
 
   requestAnimationFrame(loop);
 }
