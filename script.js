@@ -13,7 +13,7 @@ const FLOOR_Y_RATIO = 0.78;
 
 const PLAYER_WIDTH_VW  = 10;
 const PLAYER_MIN_WIDTH = 160;
-const PLAYER_MAX_WIDTH = 290;
+const PLAYER_MAX_WIDTH = 160;
 
 const SPEED = 4;              // velocidad de Priscilo dentro de la dead zone
 const WORLD_SCROLL_SPEED = 4; // velocidad de scroll del fondo cuando Priscilo
@@ -38,7 +38,8 @@ const MUSIC_LOOP_START  = 0.0;
 // =============================
 
 // --- Sprites ---
-const SPRITE_IDLE = 'elements/img/priscilom1.png';
+const SPRITE_IDLE   = 'elements/img/priscilom1.png';
+const SPRITE_CROUCH = 'elements/img/priscilocrouch.png';
 const SPRITE_WALK = [
   'elements/img/priscilom1.png',
   'elements/img/priscilom2.png',
@@ -46,7 +47,8 @@ const SPRITE_WALK = [
   'elements/img/priscilom4.png'
 ];
 
-SPRITE_WALK.forEach(src => {
+// Precarga (incluyendo el sprite de agacharse)
+[...SPRITE_WALK, SPRITE_CROUCH].forEach(src => {
   const img = new Image();
   img.src = src;
 });
@@ -147,7 +149,8 @@ initSize();
 // --- Teclas ---
 const keys = {
   ArrowLeft: false,
-  ArrowRight: false
+  ArrowRight: false,
+  ArrowDown: false
 };
 
 window.addEventListener('keydown', (e) => {
@@ -189,11 +192,16 @@ playButton.addEventListener('click', () => {
 });
 
 // --- Cambio de sprite ---
+// El sprite de agacharse puede tener distinta altura que los de caminar,
+// así que re-medimos y re-anclamos al suelo para que los pies queden bien.
 function setSprite(src) {
   if (state.currentSrc !== src) {
     priscilo.src = src;
     state.currentSrc = src;
-    requestAnimationFrame(measureSpriteHeight);
+    requestAnimationFrame(() => {
+      measureSpriteHeight();
+      state.y = getFloorY();
+    });
   }
 }
 
@@ -205,15 +213,19 @@ function loop(now) {
   lastTime = now;
 
   // Input
+  const crouching = gameStarted && keys.ArrowDown;
+
+  // Si está agachado, ignoramos izquierda/derecha (no se mueve ni scrollea)
   let dx = 0;
-  if (gameStarted) {
+  if (gameStarted && !crouching) {
     if (keys.ArrowLeft)  dx -= SPEED;
     if (keys.ArrowRight) dx += SPEED;
   }
 
   const moving = dx !== 0;
 
-  // Flip
+  // Flip: solo se actualiza si hay movimiento lateral.
+  // Al agacharse mantiene la última dirección horizontal.
   if (dx < 0) state.facing = -1;
   else if (dx > 0) state.facing = 1;
 
@@ -238,14 +250,19 @@ function loop(now) {
     backgroundOffsetX -= scroll * (WORLD_SCROLL_SPEED / SPEED);
   }
 
-  // Aplicar
+  // Aplicar posición y flip
   priscilo.style.left = state.x + 'px';
   priscilo.style.top  = state.y + 'px';
   priscilo.style.transform = `scaleX(${state.facing})`;
   background.style.backgroundPositionX = backgroundOffsetX + 'px';
 
-  // Animación
-  if (moving) {
+  // Sprite / animación
+  if (crouching) {
+    // Agachado: sprite fijo, sin animación
+    state.frameTimer = 0;
+    state.frame = 0;
+    setSprite(SPRITE_CROUCH);
+  } else if (moving) {
     state.frameTimer += delta;
     if (state.frameTimer >= FRAME_INTERVAL) {
       state.frameTimer = 0;
