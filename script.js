@@ -9,11 +9,11 @@ const hud         = document.getElementById('hud');
 // =============================
 //  CONSTANTES AJUSTABLES
 // =============================
-const FLOOR_Y_RATIO = 0.62;
+const FLOOR_Y_RATIO = 0.78;
 
 const PLAYER_WIDTH_VW  = 10;
-const PLAYER_MIN_WIDTH = 90;
-const PLAYER_MAX_WIDTH = 190;
+const PLAYER_MIN_WIDTH = 160;
+const PLAYER_MAX_WIDTH = 290;
 
 const SPEED = 4;              // velocidad de Priscilo dentro de la dead zone
 const WORLD_SCROLL_SPEED = 4; // velocidad de scroll del fondo cuando Priscilo
