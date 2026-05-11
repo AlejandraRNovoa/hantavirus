@@ -22,6 +22,14 @@ const MUSIC_SRC        = 'elements/sounds/hantasound.mp3';
 const MUSIC_VOLUME     = 0.4;
 const CLICK_SOUND_SRC  = 'elements/sounds/playsound.mp3';
 const CLICK_VOLUME     = 0.6;
+
+// Retardo entre el click de Play y el inicio de la música (ms).
+const MUSIC_START_DELAY = 1000;
+
+// Loop manual: reiniciar la música al llegar a este segundo,
+// y volver a este otro segundo, para evitar la cola silenciosa del MP3.
+const MUSIC_LOOP_END   = 28.0;   // segundos
+const MUSIC_LOOP_START = 0.0;    // segundos
 // =============================
 
 // --- Sprites ---
@@ -55,9 +63,23 @@ let gameStarted = false;
 
 // --- Audio (no se reproduce hasta pulsar Play) ---
 const bgMusic = new Audio(MUSIC_SRC);
-bgMusic.loop    = true;
+bgMusic.loop    = false;          // loop manual, no nativo
 bgMusic.volume  = MUSIC_VOLUME;
 bgMusic.preload = 'auto';
+
+// Loop manual: al llegar a MUSIC_LOOP_END, saltar a MUSIC_LOOP_START
+bgMusic.addEventListener('timeupdate', () => {
+  if (bgMusic.currentTime >= MUSIC_LOOP_END) {
+    bgMusic.currentTime = MUSIC_LOOP_START;
+  }
+});
+
+// Plan B: si el archivo es más corto de MUSIC_LOOP_END y termina antes,
+// rearrancamos manualmente desde el inicio.
+bgMusic.addEventListener('ended', () => {
+  bgMusic.currentTime = MUSIC_LOOP_START;
+  bgMusic.play().catch(() => {});
+});
 
 const clickSound = new Audio(CLICK_SOUND_SRC);
 clickSound.volume  = CLICK_VOLUME;
@@ -133,22 +155,25 @@ window.addEventListener('resize', () => {
   applyPlayerSize();
 });
 
-// --- Botón Play: arranca juego, sonido de click y música ---
+// --- Botón Play: arranca juego, sonido de click y música (con retardo) ---
 playButton.addEventListener('click', () => {
   startScreen.classList.add('hidden');
   hud.classList.remove('hidden');
   gameStarted = true;
 
-  // Sonido de click (una sola vez)
+  // Sonido de click inmediato
   clickSound.currentTime = 0;
   clickSound.play().catch(err => {
     console.warn('No se pudo reproducir el sonido de click:', err);
   });
 
-  // Música de fondo en loop
-  bgMusic.play().catch(err => {
-    console.warn('No se pudo iniciar la música:', err);
-  });
+  // Música de fondo con retardo de ~1s
+  setTimeout(() => {
+    bgMusic.currentTime = MUSIC_LOOP_START;
+    bgMusic.play().catch(err => {
+      console.warn('No se pudo iniciar la música:', err);
+    });
+  }, MUSIC_START_DELAY);
 });
 
 // --- Cambio de sprite ---
