@@ -1,19 +1,40 @@
 // ===== Hantavirus - Pantalla 1 =====
 
-const priscilo = document.getElementById('priscilo');
+const priscilo    = document.getElementById('priscilo');
+const startScreen = document.getElementById('start-screen');
+const playButton  = document.getElementById('play-button');
+const hud         = document.getElementById('hud');
+
+// =============================
+//  CONSTANTES AJUSTABLES
+// =============================
+const FLOOR_Y_RATIO = 0.68;
+
+const PLAYER_WIDTH_VW  = 8;
+const PLAYER_MIN_WIDTH = 72;
+const PLAYER_MAX_WIDTH = 150;
+
+const SPEED = 4;
+const FRAME_INTERVAL = 120;
+
+// Audio
+const MUSIC_SRC        = 'elements/sounds/hantasound.mp3';
+const MUSIC_VOLUME     = 0.4;
+const CLICK_SOUND_SRC  = 'elements/sounds/playsound.mp3';
+const CLICK_VOLUME     = 0.6;
+// =============================
 
 // --- Sprites ---
-const SPRITE_IDLE = 'elements/img/priscilo.png';
+const SPRITE_IDLE = 'elements/img/priscilom1.png';
 const SPRITE_WALK = [
   'elements/img/priscilom1.png',
   'elements/img/priscilom2.png',
   'elements/img/priscilom3.png',
-  'elements/img/priscilom4.png',
-  'elements/img/priscilom5.png'
+  'elements/img/priscilom4.png'
 ];
 
-// Precarga para evitar parpadeo en el primer ciclo de caminata
-[SPRITE_IDLE, ...SPRITE_WALK].forEach(src => {
+// Precarga
+SPRITE_WALK.forEach(src => {
   const img = new Image();
   img.src = src;
 });
@@ -21,21 +42,74 @@ const SPRITE_WALK = [
 // --- Estado ---
 const state = {
   x: 100,
-  y: 100,
-  speed: 4,           // píxeles por frame
-  width: 96,          // debe coincidir con el CSS de #priscilo
-  height: 96,
-  frame: 0,           // índice del sprite de caminata actual
-  frameTimer: 0,      // ms desde el último cambio de frame
-  frameInterval: 120, // cada cuántos ms cambia el sprite
+  y: 0,
+  width: PLAYER_MIN_WIDTH,
+  height: PLAYER_MIN_WIDTH,
+  frame: 0,
+  frameTimer: 0,
   currentSrc: SPRITE_IDLE,
-  facing: 1           // 1 = derecha, -1 = izquierda
+  facing: 1
 };
+
+let gameStarted = false;
+
+// --- Audio (no se reproduce hasta pulsar Play) ---
+const bgMusic = new Audio(MUSIC_SRC);
+bgMusic.loop    = true;
+bgMusic.volume  = MUSIC_VOLUME;
+bgMusic.preload = 'auto';
+
+const clickSound = new Audio(CLICK_SOUND_SRC);
+clickSound.volume  = CLICK_VOLUME;
+clickSound.preload = 'auto';
+
+// --- Helpers ---
+function computePlayerWidth() {
+  const raw = window.innerWidth * (PLAYER_WIDTH_VW / 100);
+  return Math.max(PLAYER_MIN_WIDTH, Math.min(PLAYER_MAX_WIDTH, raw));
+}
+
+function getFloorY() {
+  return window.innerHeight * FLOOR_Y_RATIO - state.height;
+}
+
+function measureSpriteHeight() {
+  const h = priscilo.offsetHeight;
+  if (h > 0) state.height = h;
+}
+
+function clampX() {
+  const maxX = window.innerWidth - state.width;
+  if (state.x < 0) state.x = 0;
+  if (state.x > maxX) state.x = maxX;
+}
+
+function applyPlayerSize() {
+  state.width = computePlayerWidth();
+  priscilo.style.width = state.width + 'px';
+
+  requestAnimationFrame(() => {
+    measureSpriteHeight();
+    state.y = getFloorY();
+    clampX();
+  });
+}
+
+// --- Inicialización del tamaño al cargar ---
+function initSize() {
+  applyPlayerSize();
+  if (!priscilo.complete || priscilo.naturalHeight === 0) {
+    priscilo.addEventListener('load', () => {
+      measureSpriteHeight();
+      state.y = getFloorY();
+    }, { once: true });
+  }
+}
+
+initSize();
 
 // --- Teclas ---
 const keys = {
-  ArrowUp: false,
-  ArrowDown: false,
   ArrowLeft: false,
   ArrowRight: false
 };
@@ -54,11 +128,35 @@ window.addEventListener('keyup', (e) => {
   }
 });
 
-// --- Helper para cambiar sprite solo cuando hace falta ---
+// --- Resize ---
+window.addEventListener('resize', () => {
+  applyPlayerSize();
+});
+
+// --- Botón Play: arranca juego, sonido de click y música ---
+playButton.addEventListener('click', () => {
+  startScreen.classList.add('hidden');
+  hud.classList.remove('hidden');
+  gameStarted = true;
+
+  // Sonido de click (una sola vez)
+  clickSound.currentTime = 0;
+  clickSound.play().catch(err => {
+    console.warn('No se pudo reproducir el sonido de click:', err);
+  });
+
+  // Música de fondo en loop
+  bgMusic.play().catch(err => {
+    console.warn('No se pudo iniciar la música:', err);
+  });
+});
+
+// --- Cambio de sprite ---
 function setSprite(src) {
   if (state.currentSrc !== src) {
     priscilo.src = src;
     state.currentSrc = src;
+    requestAnimationFrame(measureSpriteHeight);
   }
 }
 
@@ -69,41 +167,27 @@ function loop(now) {
   const delta = now - lastTime;
   lastTime = now;
 
-  // 1. Movimiento
   let dx = 0;
-  let dy = 0;
-  if (keys.ArrowLeft)  dx -= state.speed;
-  if (keys.ArrowRight) dx += state.speed;
-  if (keys.ArrowUp)    dy -= state.speed;
-  if (keys.ArrowDown)  dy += state.speed;
+  if (gameStarted) {
+    if (keys.ArrowLeft)  dx -= SPEED;
+    if (keys.ArrowRight) dx += SPEED;
+  }
 
-  const moving = dx !== 0 || dy !== 0;
+  const moving = dx !== 0;
 
-  // 2. Actualizar dirección horizontal solo si hay movimiento lateral
   if (dx < 0) state.facing = -1;
   else if (dx > 0) state.facing = 1;
-  // si dx === 0 (subiendo, bajando o quieto): se mantiene la última dirección
 
   state.x += dx;
-  state.y += dy;
+  clampX();
 
-  // 3. Limitar dentro de la pantalla
-  const maxX = window.innerWidth  - state.width;
-  const maxY = window.innerHeight - state.height;
-  if (state.x < 0) state.x = 0;
-  if (state.y < 0) state.y = 0;
-  if (state.x > maxX) state.x = maxX;
-  if (state.y > maxY) state.y = maxY;
-
-  // 4. Aplicar posición y flip
   priscilo.style.left = state.x + 'px';
   priscilo.style.top  = state.y + 'px';
   priscilo.style.transform = `scaleX(${state.facing})`;
 
-  // 5. Animación
   if (moving) {
     state.frameTimer += delta;
-    if (state.frameTimer >= state.frameInterval) {
+    if (state.frameTimer >= FRAME_INTERVAL) {
       state.frameTimer = 0;
       state.frame = (state.frame + 1) % SPRITE_WALK.length;
       setSprite(SPRITE_WALK[state.frame]);

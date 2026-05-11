@@ -17,32 +17,100 @@ html, body {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
+  background: #000;
 }
 
-/* Fondo a pantalla completa */
+/* Fondo: ocupa pantalla completa SIN deformarse */
 #background {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  object-position: center center;
   z-index: 0;
   pointer-events: none;
   user-select: none;
   -webkit-user-drag: none;
 }
 
-/* Personaje */
+/* Personaje: ancho lo fija el JS, alto automático para respetar proporción */
 #priscilo {
   position: absolute;
-  width: 96px;
-  height: 96px;
-  left: 100px;
-  top: 100px;
+  height: auto;
   z-index: 1;
   user-select: none;
   -webkit-user-drag: none;
+  transform-origin: center bottom;
+}
+
+/* ===== HUD de vidas ===== */
+#hud {
+  position: fixed;
+  top: 2vh;
+  right: 2vw;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.6vw;
+  pointer-events: none;
+}
+
+#hud.hidden {
+  display: none;
+}
+
+#hud .life {
+  width: clamp(28px, 3vw, 48px);
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* ===== Pantalla inicial ===== */
+#start-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2vh;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 4vh 4vw;
+}
+
+#start-screen.hidden {
+  display: none;
+}
+
+#game-title {
+  width: min(70vw, 720px);
+  height: auto;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+#play-button {
+  width: min(14vw, 150px);
+  height: auto;
+  cursor: pointer;
+  transition: transform 0.12s ease-out;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+#play-button:hover {
+  transform: scale(1.06);
+}
+
+#play-button:active {
+  transform: scale(0.98);
 }
 
 /* Pixel art: sin blur, sin suavizado */
