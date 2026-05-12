@@ -58,13 +58,17 @@ const INVULN_DURATION_MS = 1000;
 
 // Puerta (hallway → bathroom)
 // AJUSTABLES: estos dos son los que tocar si la flecha no apunta a la puerta correcta.
-const DOOR_APPEAR_TIME = 15000;
-const DOOR_WORLD_X     = 3000;        // más cerca para que aparezca antes
+const DOOR_APPEAR_TIME = 3000;        // DEBUG: baja para probar rápido
+const DOOR_WORLD_X     = 3000;
 const DOOR_Y_RATIO     = 0.18;
 const DOOR_ZONE_WIDTH_RATIO = 0.10;
 
-const DOOR_ARROW_OFFSET_X_VH = 0.05;  // casi sin offset; ajustar a ojo si hace falta
+const DOOR_ARROW_OFFSET_X_VH = 0.90;
 const DOOR_ARROW_OFFSET_Y_VH = -0.04;
+
+// Debug
+const DEBUG_DOOR        = true;
+const DEBUG_INTERVAL_MS = 500;
 
 // Posición de entrada en el baño
 const BATHROOM_START_X_RATIO = 0.25;
@@ -158,6 +162,8 @@ let gameTime    = 0;
 let doorUnlocked = false;
 
 let sanitizerUsed = false;
+
+let debugAccum = 0;
 
 // --- Audio ---
 const bgMusic = new Audio(MUSIC_SRC);
@@ -680,7 +686,28 @@ function loop(now) {
 
   if (gameStarted && !gameOver && currentScene === 'hallway') {
     gameTime += delta;
-    if (!doorUnlocked && gameTime >= DOOR_APPEAR_TIME) doorUnlocked = true;
+    if (!doorUnlocked && gameTime >= DOOR_APPEAR_TIME) {
+      doorUnlocked = true;
+      if (DEBUG_DOOR) console.log('[DOOR] desbloqueada a los', gameTime.toFixed(0), 'ms');
+    }
+  }
+
+  if (DEBUG_DOOR && gameStarted) {
+    debugAccum += delta;
+    if (debugAccum >= DEBUG_INTERVAL_MS) {
+      debugAccum = 0;
+      console.log('[DOOR DEBUG]',
+        'scene=', currentScene,
+        'unlocked=', doorUnlocked,
+        'bgOffset=', backgroundOffsetX.toFixed(1),
+        'doorScreenX=', getDoorScreenX().toFixed(1),
+        'doorVisualX=', getDoorVisualX().toFixed(1),
+        'gameWidth=', getGameWidth(),
+        'onScreen=', isDoorOnScreen(),
+        'arrowClass=', doorArrow ? doorArrow.className : 'NULL',
+        'arrowSrc=', doorArrow ? doorArrow.getAttribute('src') : 'NULL'
+      );
+    }
   }
 
   if (priscilo.classList.contains('invulnerable') && now >= invulnerableUntil && !gameOver) {
