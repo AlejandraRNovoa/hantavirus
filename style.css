@@ -26,7 +26,7 @@ html, body {
   overflow: hidden;
 }
 
-/* Juego: aspect ratio fijo 16:9, posicionado dentro del wrapper */
+/* Juego: aspect ratio fijo 16:9 */
 #game {
   position: relative;
   width: min(100vw, calc(100vh * 16 / 9));
@@ -50,7 +50,6 @@ html, body {
   pointer-events: none;
 }
 
-/* Escena: pasillo del crucero (tile horizontal infinito) */
 #background.scene-hallway {
   background-image: url("elements/img/background1.png");
   background-repeat: repeat-x;
@@ -58,7 +57,6 @@ html, body {
   background-position: 0 center;
 }
 
-/* Escena: baño (fullscreen del game, sin bandas internas) */
 #background.scene-bathroom {
   background-image: url("elements/img/bathroom1.png");
   background-repeat: no-repeat;
@@ -66,7 +64,6 @@ html, body {
   background-position: center center;
 }
 
-/* Personaje */
 #priscilo {
   position: absolute;
   height: auto;
@@ -86,7 +83,6 @@ html, body {
   }
 }
 
-/* Rata enemiga */
 #rat {
   position: absolute;
   height: auto;
@@ -100,7 +96,6 @@ html, body {
   display: none;
 }
 
-/* Flecha indicadora de puerta */
 #door-arrow {
   position: absolute;
   height: auto;
@@ -121,7 +116,6 @@ html, body {
   50%      { transform: translateY(14px); }
 }
 
-/* Gel hidroalcohólico */
 #sanitizer-item {
   position: absolute;
   height: auto;
@@ -149,7 +143,7 @@ html, body {
   }
 }
 
-/* ===== Fade screen para transiciones entre escenas ===== */
+/* ===== Fade screen ===== */
 #fade-screen {
   position: fixed;
   top: 0;
@@ -188,6 +182,61 @@ html, body {
   height: auto;
   user-select: none;
   -webkit-user-drag: none;
+}
+
+/* ===== Controles móviles ===== */
+#mobile-controls {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100vw;
+  z-index: 6;
+  display: none;                 /* Por defecto ocultos */
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 2vh 3vw;
+  pointer-events: none;          /* Solo los botones reciben pointer */
+  touch-action: none;
+}
+
+#mobile-controls .mc-left,
+#mobile-controls .mc-right {
+  display: flex;
+  gap: 1.5vw;
+  pointer-events: auto;
+}
+
+.mc-btn {
+  width: clamp(56px, 12vw, 92px);
+  height: clamp(56px, 12vw, 92px);
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: clamp(20px, 5vw, 36px);
+  font-weight: bold;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.mc-btn:active,
+.mc-btn.pressed {
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(0.96);
+}
+
+/* Mostrar solo en dispositivos táctiles */
+@media (hover: none) and (pointer: coarse) {
+  #mobile-controls {
+    display: flex;
+  }
 }
 
 /* ===== Pantalla inicial ===== */
@@ -233,6 +282,13 @@ html, body {
 
 #play-button:active {
   transform: scale(0.98);
+}
+
+/* En móvil, el play button puede ser más grande */
+@media (hover: none) and (pointer: coarse) {
+  #play-button {
+    width: min(28vw, 200px);
+  }
 }
 
 /* ===== Pause ===== */

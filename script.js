@@ -13,13 +13,13 @@ const doorArrow   = document.getElementById('door-arrow');
 const sanitizerEl = document.getElementById('sanitizer-item');
 const fadeEl      = document.getElementById('fade-screen');
 const lifeIcons   = document.querySelectorAll('#hud .life');
+const mobileCtrls = document.getElementById('mobile-controls');
 
 // =============================
 //  CONSTANTES AJUSTABLES
 // =============================
 const FLOOR_Y_RATIO = 0.78;
 
-// Tamaño del jugador como proporción del ANCHO del area de juego (no viewport)
 const PLAYER_WIDTH_RATIO = 0.10;
 const PLAYER_MIN_WIDTH   = 110;
 const PLAYER_MAX_WIDTH   = 220;
@@ -57,13 +57,13 @@ const MAX_LIVES          = 3;
 const INVULN_DURATION_MS = 1000;
 
 // Puerta (hallway → bathroom)
+// AJUSTABLES: estos dos son los que tocar si la flecha no apunta a la puerta correcta.
 const DOOR_APPEAR_TIME = 15000;
-const DOOR_WORLD_X     = 4200;
+const DOOR_WORLD_X     = 3000;        // más cerca para que aparezca antes
 const DOOR_Y_RATIO     = 0.18;
-const DOOR_ZONE_WIDTH_RATIO = 0.10;   // proporción del ancho del area de juego
+const DOOR_ZONE_WIDTH_RATIO = 0.10;
 
-// Offsets de la flecha como proporción del ALTO del area de juego.
-const DOOR_ARROW_OFFSET_X_VH = 0.30;
+const DOOR_ARROW_OFFSET_X_VH = 0.05;  // casi sin offset; ajustar a ojo si hace falta
 const DOOR_ARROW_OFFSET_Y_VH = -0.04;
 
 // Posición de entrada en el baño
@@ -71,10 +71,10 @@ const BATHROOM_START_X_RATIO = 0.25;
 
 // Gel hidroalcohólico (en el baño)
 const SANITIZER_X_RATIO = 0.46;
-const SANITIZER_Y_RATIO = 0.49;       // ligeramente más bajo (era 0.43)
-const SANITIZER_ZONE_RATIO = 0.08;    // proporción del ancho del area de juego
+const SANITIZER_Y_RATIO = 0.49;
+const SANITIZER_ZONE_RATIO = 0.08;
 
-// Transición fade entre escenas (ms). Debe coincidir con la transición CSS.
+// Transición fade entre escenas (ms)
 const FADE_DURATION_MS = 400;
 
 // Audio
@@ -96,8 +96,6 @@ const MUSIC_LOOP_START  = 0.0;
 // =============================
 
 // --- Helpers de tamaño del área de juego ---
-// Estas funciones son la clave del responsive estable: TODO se calcula
-// relativo al área 16:9, no al viewport.
 function getGameWidth()  { return game.clientWidth; }
 function getGameHeight() { return game.clientHeight; }
 
@@ -125,32 +123,22 @@ const RAT_SPRITES = [
   img.src = src;
 });
 
-// --- Estado del jugador ---
+// --- Estado ---
 const state = {
-  x: 0,
-  y: 0,
-  groundY: 0,
-  width: PLAYER_MIN_WIDTH,
-  height: PLAYER_MIN_WIDTH,
-  frame: 0,
-  frameTimer: 0,
+  x: 0, y: 0, groundY: 0,
+  width: PLAYER_MIN_WIDTH, height: PLAYER_MIN_WIDTH,
+  frame: 0, frameTimer: 0,
   currentSrc: SPRITE_IDLE,
   facing: 1,
-  isJumping: false,
-  velocityY: 0
+  isJumping: false, velocityY: 0
 };
 
-// --- Estado de la rata ---
 const ratState = {
-  x: 0,
-  y: 0,
-  width: RAT_MIN_WIDTH,
-  height: RAT_MIN_WIDTH,
-  frame: 0,
-  frameTimer: 0,
+  x: 0, y: 0,
+  width: RAT_MIN_WIDTH, height: RAT_MIN_WIDTH,
+  frame: 0, frameTimer: 0,
   currentSrc: RAT_SPRITES[0],
-  speed: RAT_MIN_SPEED,
-  scale: 1
+  speed: RAT_MIN_SPEED, scale: 1
 };
 
 let backgroundOffsetX = 0;
@@ -235,16 +223,10 @@ function measureSpriteHeight() {
   if (h > 0) state.height = h;
 }
 
-function getDeadZoneLeft() {
-  return getGameWidth() * DEAD_ZONE_LEFT_RATIO;
-}
-function getDeadZoneRight() {
-  return getGameWidth() * DEAD_ZONE_RIGHT_RATIO - state.width;
-}
+function getDeadZoneLeft()  { return getGameWidth() * DEAD_ZONE_LEFT_RATIO; }
+function getDeadZoneRight() { return getGameWidth() * DEAD_ZONE_RIGHT_RATIO - state.width; }
 
-function centerPriscilo() {
-  state.x = (getGameWidth() - state.width) / 2;
-}
+function centerPriscilo() { state.x = (getGameWidth() - state.width) / 2; }
 
 function applyPlayerSize() {
   state.width = computePlayerWidth();
@@ -253,9 +235,7 @@ function applyPlayerSize() {
   requestAnimationFrame(() => {
     measureSpriteHeight();
     state.groundY = getFloorY();
-    if (!state.isJumping) {
-      state.y = state.groundY;
-    }
+    if (!state.isJumping) state.y = state.groundY;
     if (currentScene === 'hallway') {
       const left  = getDeadZoneLeft();
       const right = getDeadZoneRight();
@@ -331,10 +311,8 @@ function initRat() {
 
 initRat();
 
-// --- Puerta (solo hallway) ---
-function getDoorScreenX() {
-  return DOOR_WORLD_X + backgroundOffsetX;
-}
+// --- Puerta ---
+function getDoorScreenX() { return DOOR_WORLD_X + backgroundOffsetX; }
 
 function getDoorVisualX() {
   return getDoorScreenX() + getGameHeight() * DOOR_ARROW_OFFSET_X_VH;
@@ -372,23 +350,16 @@ function isPriscilonNearDoor() {
 }
 
 // --- Gel ---
-function getSanitizerX() {
-  return getGameWidth() * SANITIZER_X_RATIO;
-}
-function getSanitizerY() {
-  return getGameHeight() * SANITIZER_Y_RATIO;
-}
+function getSanitizerX() { return getGameWidth() * SANITIZER_X_RATIO; }
+function getSanitizerY() { return getGameHeight() * SANITIZER_Y_RATIO; }
 
 function updateSanitizer() {
   if (!sanitizerEl) return;
-
   if (currentScene !== 'bathroom' || sanitizerUsed) {
     sanitizerEl.classList.add('hidden');
     return;
   }
-
   sanitizerEl.classList.remove('hidden');
-
   const w = sanitizerEl.offsetWidth || 60;
   const h = sanitizerEl.offsetHeight || 60;
   sanitizerEl.style.left = (getSanitizerX() - w / 2) + 'px';
@@ -420,7 +391,7 @@ function useSanitizer() {
   });
 }
 
-// --- Transición entre escenas (fade to black) ---
+// --- Transición entre escenas ---
 function transitionToScene(sceneName) {
   if (isTransitioning) return;
   if (sceneName !== 'hallway' && sceneName !== 'bathroom') return;
@@ -435,9 +406,7 @@ function transitionToScene(sceneName) {
 
   setTimeout(() => {
     applySceneChange(sceneName);
-
     if (fadeEl) fadeEl.classList.remove('fade-active');
-
     setTimeout(() => {
       isTransitioning = false;
       lastTime = performance.now();
@@ -448,34 +417,25 @@ function transitionToScene(sceneName) {
 function applySceneChange(sceneName) {
   if (sceneName === 'bathroom') {
     currentScene = 'bathroom';
-
     background.classList.remove('scene-hallway');
     background.classList.add('scene-bathroom');
-
     rat.classList.add('hidden');
     doorArrow.classList.add('hidden');
-
     state.x = getGameWidth() * BATHROOM_START_X_RATIO;
     state.isJumping = false;
     state.velocityY = 0;
     state.y = state.groundY;
-
     updateSanitizer();
-
   } else if (sceneName === 'hallway') {
     currentScene = 'hallway';
-
     background.classList.remove('scene-bathroom');
     background.classList.add('scene-hallway');
-
     rat.classList.remove('hidden');
     sanitizerEl.classList.add('hidden');
-
     state.x = (getGameWidth() - state.width) / 2;
     state.isJumping = false;
     state.velocityY = 0;
     state.y = state.groundY;
-
     updateDoorArrow();
   }
 }
@@ -511,9 +471,7 @@ function takeDamage(now) {
 
   spawnRatRight();
 
-  if (lives <= 0) {
-    triggerGameOver();
-  }
+  if (lives <= 0) triggerGameOver();
 }
 
 function triggerGameOver() {
@@ -527,9 +485,7 @@ function triggerGameOver() {
 // --- Pausa ---
 function togglePause() {
   if (!gameStarted || gameOver || isTransitioning) return;
-
   isPaused = !isPaused;
-
   if (isPaused) {
     stopSteps();
     bgMusic.volume = MUSIC_PAUSE_VOL;
@@ -551,6 +507,21 @@ const keys = {
   e: false,
   E: false
 };
+
+// Acción contextual: prioriza interactuar con puerta/gel; si no, agacharse.
+function doContextAction() {
+  if (gameOver || isPaused || isTransitioning || !gameStarted) return;
+  if (currentScene === 'hallway' && isPriscilonNearDoor()) {
+    transitionToScene('bathroom');
+    return;
+  }
+  if (currentScene === 'bathroom' && isPriscilonNearSanitizer()) {
+    useSanitizer();
+    return;
+  }
+  // Si no hay interacción posible, agacharse mientras el botón esté pulsado.
+  // Esto lo gestiona keys.ArrowDown en los handlers de los botones.
+}
 
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
@@ -585,12 +556,59 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => {
   if (e.key in keys) {
     keys[e.key] = false;
-    if (e.key === ' ') {
-      jumpKeyReleased = true;
-    }
+    if (e.key === ' ') jumpKeyReleased = true;
     e.preventDefault();
   }
 });
+
+// --- Controles móviles ---
+// Enchufa los botones al MISMO objeto `keys`. No duplica lógica.
+if (mobileCtrls) {
+  const buttons = mobileCtrls.querySelectorAll('.mc-btn');
+
+  buttons.forEach(btn => {
+    const keyName = btn.getAttribute('data-key'); // 'ArrowLeft', 'ArrowRight', ' '
+    const action  = btn.getAttribute('data-action'); // 'action'
+
+    const press = (ev) => {
+      ev.preventDefault();
+      btn.classList.add('pressed');
+      if (isTransitioning) return;
+
+      if (action === 'action') {
+        // Intento de interacción contextual (puerta o gel)
+        doContextAction();
+        // Además, simula ArrowDown para poder agacharse manteniendo pulsado
+        if (gameStarted && !gameOver && !isPaused) {
+          keys.ArrowDown = true;
+        }
+      } else if (keyName) {
+        keys[keyName] = true;
+      }
+    };
+
+    const release = (ev) => {
+      ev.preventDefault();
+      btn.classList.remove('pressed');
+
+      if (action === 'action') {
+        keys.ArrowDown = false;
+      } else if (keyName) {
+        keys[keyName] = false;
+        if (keyName === ' ') jumpKeyReleased = true;
+      }
+    };
+
+    btn.addEventListener('pointerdown', press);
+    btn.addEventListener('pointerup', release);
+    btn.addEventListener('pointercancel', release);
+    btn.addEventListener('pointerleave', release);
+    // Evita el "click fantasma" tras pointer events
+    btn.addEventListener('click', (e) => e.preventDefault());
+    // Evita menú contextual en móvil por mantener pulsado
+    btn.addEventListener('contextmenu', (e) => e.preventDefault());
+  });
+}
 
 // --- Resize ---
 window.addEventListener('resize', () => {
@@ -662,16 +680,13 @@ function loop(now) {
 
   if (gameStarted && !gameOver && currentScene === 'hallway') {
     gameTime += delta;
-    if (!doorUnlocked && gameTime >= DOOR_APPEAR_TIME) {
-      doorUnlocked = true;
-    }
+    if (!doorUnlocked && gameTime >= DOOR_APPEAR_TIME) doorUnlocked = true;
   }
 
   if (priscilo.classList.contains('invulnerable') && now >= invulnerableUntil && !gameOver) {
     priscilo.classList.remove('invulnerable');
   }
 
-  // ===== JUGADOR =====
   const crouching = gameStarted && !gameOver && !state.isJumping && keys.ArrowDown;
 
   if (gameStarted && !gameOver && keys[' '] && jumpKeyReleased &&
@@ -723,14 +738,12 @@ function loop(now) {
     const maxX = getGameWidth() - state.width;
     if (state.x < 0)    state.x = 0;
     if (state.x > maxX) state.x = maxX;
-
     background.style.backgroundPositionX = '';
   }
 
   if (state.isJumping) {
     state.velocityY += GRAVITY;
     state.y += state.velocityY;
-
     if (state.y >= state.groundY) {
       state.y = state.groundY;
       state.isJumping = false;
@@ -783,9 +796,7 @@ function loop(now) {
     ratState.x -= ratState.speed;
     ratState.x += worldShift;
 
-    if (ratState.x < -ratState.width) {
-      spawnRatRight();
-    }
+    if (ratState.x < -ratState.width) spawnRatRight();
 
     ratState.frameTimer += delta;
     if (ratState.frameTimer >= RAT_FRAME_INTERVAL) {
@@ -799,9 +810,7 @@ function loop(now) {
   }
 
   if (currentScene === 'hallway' && gameStarted && !gameOver && now >= invulnerableUntil) {
-    if (checkCollision()) {
-      takeDamage(now);
-    }
+    if (checkCollision()) takeDamage(now);
   }
 
   requestAnimationFrame(loop);

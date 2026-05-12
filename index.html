@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>Hantavirus</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -21,6 +21,18 @@
     <img class="life" src="elements/img/life.png" alt="Vida" />
     <img class="life" src="elements/img/life.png" alt="Vida" />
     <img class="life" src="elements/img/life.png" alt="Vida" />
+  </div>
+
+  <!-- Controles táctiles (sólo visibles en dispositivos pointer:coarse) -->
+  <div id="mobile-controls" aria-hidden="true">
+    <div class="mc-left">
+      <button class="mc-btn" data-key="ArrowLeft" aria-label="Izquierda">◀</button>
+      <button class="mc-btn" data-key="ArrowRight" aria-label="Derecha">▶</button>
+    </div>
+    <div class="mc-right">
+      <button class="mc-btn" data-action="action" aria-label="Acción">●</button>
+      <button class="mc-btn" data-key=" " aria-label="Saltar">▲</button>
+    </div>
   </div>
 
   <div id="fade-screen"></div>
