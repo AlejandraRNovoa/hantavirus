@@ -67,8 +67,8 @@ const DOOR_ARROW_OFFSET_Y = -40;
 const BATHROOM_START_X_RATIO = 0.25;
 
 // Gel hidroalcohólico (en el baño)
-const SANITIZER_X_RATIO = 0.50;   // centro horizontal del lavabo
-const SANITIZER_Y_RATIO = 0.58;   // apoyado en la encimera/lavabo (más bajo)
+const SANITIZER_X_RATIO = 0.46;   // un poco a la izquierda, sobre la encimera
+const SANITIZER_Y_RATIO = 0.62;   // más abajo, apoyado en el lavabo
 const SANITIZER_ZONE    = 120;
 
 // Transición fade entre escenas (ms). Debe coincidir con la transición CSS.
