@@ -60,15 +60,15 @@ const DOOR_WORLD_X     = 4200;
 const DOOR_Y_RATIO     = 0.18;
 const DOOR_ZONE_WIDTH  = 160;
 
-const DOOR_ARROW_OFFSET_X = 300;
-const DOOR_ARROW_OFFSET_Y = -40;
+const DOOR_ARROW_OFFSET_X_VH = 0.30;   // proporción del alto del viewport
+const DOOR_ARROW_OFFSET_Y_VH = -0.04;  // proporción del alto del viewport
 
 // Posición de entrada en el baño
 const BATHROOM_START_X_RATIO = 0.25;
 
 // Gel hidroalcohólico (en el baño)
-const SANITIZER_X_RATIO = 0.46;   // un poco a la izquierda, sobre la encimera
-const SANITIZER_Y_RATIO = 0.62;   // más abajo, apoyado en el lavabo
+const SANITIZER_X_RATIO = 0.46;
+const SANITIZER_Y_RATIO = 0.43;
 const SANITIZER_ZONE    = 120;
 
 // Transición fade entre escenas (ms). Debe coincidir con la transición CSS.
@@ -328,7 +328,7 @@ function getDoorScreenX() {
 }
 
 function getDoorVisualX() {
-  return getDoorScreenX() + DOOR_ARROW_OFFSET_X;
+  return getDoorScreenX() + window.innerHeight * DOOR_ARROW_OFFSET_X_VH;
 }
 
 function isDoorOnScreen() {
@@ -351,7 +351,7 @@ function updateDoorArrow() {
   const arrowW = doorArrow.offsetWidth || 64;
   const baseY  = window.innerHeight * DOOR_Y_RATIO;
   doorArrow.style.left = (x - arrowW / 2) + 'px';
-  doorArrow.style.top  = (baseY + DOOR_ARROW_OFFSET_Y) + 'px';
+  doorArrow.style.top  = (baseY + window.innerHeight * DOOR_ARROW_OFFSET_Y_VH) + 'px';
 }
 
 function isPriscilonNearDoor() {
