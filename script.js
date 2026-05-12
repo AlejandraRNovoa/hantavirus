@@ -588,10 +588,13 @@ window.addEventListener('keydown', (e) => {
       }
     }
     // S / E: interacción contextual (recoger sanitizer, o puerta si aplica).
-    if ((e.key === 's' || e.key === 'S' || e.key === 'e' || e.key === 'E')
-        && !(keys.s || keys.S || keys.e || keys.E)) {
-      if (gameStarted && !gameOver && !isPaused) {
-        doContextAction();
+    // Comparación en lowercase: S y E son alias reales y simétricos, independientes de Caps/Shift.
+    {
+      const k = typeof e.key === 'string' ? e.key.toLowerCase() : '';
+      if ((k === 's' || k === 'e') && !isInteractPressed()) {
+        if (gameStarted && !gameOver && !isPaused) {
+          doContextAction();
+        }
       }
     }
     keys[e.key] = true;
@@ -641,10 +644,13 @@ if (mobileCtrls) {
           }
         }
       }
-      if ((keyName === 's' || keyName === 'S' || keyName === 'e' || keyName === 'E')
-          && !(keys.s || keys.S || keys.e || keys.E)) {
-        if (gameStarted && !gameOver && !isPaused) {
-          doContextAction();
+      // S / E: misma lógica que en desktop, comparación en lowercase para ser simétrica.
+      {
+        const k = typeof keyName === 'string' ? keyName.toLowerCase() : '';
+        if ((k === 's' || k === 'e') && !isInteractPressed()) {
+          if (gameStarted && !gameOver && !isPaused) {
+            doContextAction();
+          }
         }
       }
 
@@ -778,8 +784,23 @@ function setRatSprite(src) {
 }
 
 // --- Bucle principal ---
+// Gate de 60 FPS: en móviles a 90/120 Hz, rAF dispara más rápido que en desktop a 60 Hz.
+// Como el movimiento es per-frame (no escalado por delta), eso aceleraría el juego.
+// Saltamos frames hasta que haya pasado al menos ~16.67 ms desde el último frame procesado.
+// No se modifica ninguna constante de velocidad; sólo se uniforma el ritmo del loop.
+const TARGET_FRAME_MS = 1000 / 60;
+// Pequeño margen para no saltar el frame "justo a tiempo" en monitores de 60Hz.
+const FRAME_GATE_TOLERANCE = 1;
+
 function loop(now) {
   if (isPaused || isTransitioning || orientationBlocked) {
+    requestAnimationFrame(loop);
+    return;
+  }
+
+  // Gate de 60 FPS: si no ha pasado suficiente tiempo desde el último frame procesado,
+  // saltar este frame sin actualizar lastTime ni mover nada.
+  if ((now - lastTime) < (TARGET_FRAME_MS - FRAME_GATE_TOLERANCE)) {
     requestAnimationFrame(loop);
     return;
   }
