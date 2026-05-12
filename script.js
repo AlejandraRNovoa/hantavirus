@@ -7,6 +7,7 @@ const playButton  = document.getElementById('play-button');
 const hud         = document.getElementById('hud');
 const rat         = document.getElementById('rat');
 const gameOverEl  = document.getElementById('game-over');
+const pauseEl     = document.getElementById('pause-screen');
 const lifeIcons   = document.querySelectorAll('#hud .life');
 
 // =============================
@@ -25,15 +26,25 @@ const FRAME_INTERVAL = 120;
 const DEAD_ZONE_LEFT_RATIO  = 0.42;
 const DEAD_ZONE_RIGHT_RATIO = 0.58;
 
+// Salto
+const JUMP_FORCE = -20;
+const GRAVITY    = 0.60;
+const JUMP_SPRITE_THRESHOLD = -3;
+
 // Rata
 const RAT_WIDTH_VW       = 4;
 const RAT_MIN_WIDTH      = 100;
 const RAT_MAX_WIDTH      = 100;
 const RAT_FLOOR_Y_RATIO  = 0.78;
-const RAT_SPEED          = 3;
 const RAT_FRAME_INTERVAL = 150;
 const RAT_RESPAWN_MIN    = 200;
 const RAT_RESPAWN_RANGE  = 400;
+
+const RAT_MIN_SPEED = 2.5;
+const RAT_MAX_SPEED = 5;
+
+const RAT_MIN_SCALE = 0.9;
+const RAT_MAX_SCALE = 1.2;
 
 // Vidas / daño
 const START_LIVES        = 3;
@@ -42,6 +53,7 @@ const INVULN_DURATION_MS = 1000;
 // Audio
 const MUSIC_SRC        = 'elements/sounds/hantasound.mp3';
 const MUSIC_VOLUME     = 0.4;
+const MUSIC_PAUSE_VOL  = 0.15;
 const CLICK_SOUND_SRC  = 'elements/sounds/playsound.mp3';
 const CLICK_VOLUME     = 0.6;
 const STEPS_SRC        = 'elements/sounds/steps.mp3';
@@ -55,8 +67,10 @@ const MUSIC_LOOP_START  = 0.0;
 // =============================
 
 // --- Sprites ---
-const SPRITE_IDLE   = 'elements/img/priscilom1.png';
-const SPRITE_CROUCH = 'elements/img/priscilocrouch.png';
+const SPRITE_IDLE      = 'elements/img/priscilom1.png';
+const SPRITE_CROUCH    = 'elements/img/priscilocrouch.png';
+const SPRITE_JUMP_UP   = 'elements/img/priscilojump1.png';
+const SPRITE_JUMP_DOWN = 'elements/img/priscilojump2.png';
 const SPRITE_WALK = [
   'elements/img/priscilom1.png',
   'elements/img/priscilom2.png',
@@ -69,8 +83,7 @@ const RAT_SPRITES = [
   'elements/img/rata2.png'
 ];
 
-// Precarga
-[...SPRITE_WALK, SPRITE_CROUCH, ...RAT_SPRITES].forEach(src => {
+[...SPRITE_WALK, SPRITE_CROUCH, SPRITE_JUMP_UP, SPRITE_JUMP_DOWN, ...RAT_SPRITES].forEach(src => {
   const img = new Image();
   img.src = src;
 });
@@ -79,12 +92,15 @@ const RAT_SPRITES = [
 const state = {
   x: 0,
   y: 0,
+  groundY: 0,
   width: PLAYER_MIN_WIDTH,
   height: PLAYER_MIN_WIDTH,
   frame: 0,
   frameTimer: 0,
   currentSrc: SPRITE_IDLE,
-  facing: 1
+  facing: 1,
+  isJumping: false,
+  velocityY: 0
 };
 
 // --- Estado de la rata ---
@@ -95,16 +111,20 @@ const ratState = {
   height: RAT_MIN_WIDTH,
   frame: 0,
   frameTimer: 0,
-  currentSrc: RAT_SPRITES[0]
+  currentSrc: RAT_SPRITES[0],
+  speed: RAT_MIN_SPEED,
+  scale: 1
 };
 
 let backgroundOffsetX = 0;
 let gameStarted = false;
 let gameOver    = false;
+let isPaused    = false;
 
-// Vidas e invulnerabilidad
 let lives = START_LIVES;
 let invulnerableUntil = 0;
+
+let jumpKeyReleased = true;
 
 // --- Audio ---
 const bgMusic = new Audio(MUSIC_SRC);
@@ -183,7 +203,10 @@ function applyPlayerSize() {
 
   requestAnimationFrame(() => {
     measureSpriteHeight();
-    state.y = getFloorY();
+    state.groundY = getFloorY();
+    if (!state.isJumping) {
+      state.y = state.groundY;
+    }
     const left  = getDeadZoneLeft();
     const right = getDeadZoneRight();
     if (state.x < left)  state.x = left;
@@ -196,7 +219,8 @@ function initSize() {
   if (!priscilo.complete || priscilo.naturalHeight === 0) {
     priscilo.addEventListener('load', () => {
       measureSpriteHeight();
-      state.y = getFloorY();
+      state.groundY = getFloorY();
+      state.y = state.groundY;
       centerPriscilo();
     }, { once: true });
   } else {
@@ -221,18 +245,22 @@ function measureRatHeight() {
   if (h > 0) ratState.height = h;
 }
 
-function spawnRatRight() {
-  ratState.x = window.innerWidth + RAT_RESPAWN_MIN + Math.random() * RAT_RESPAWN_RANGE;
-}
-
 function applyRatSize() {
-  ratState.width = computeRatWidth();
+  const baseWidth = computeRatWidth();
+  ratState.width  = baseWidth * ratState.scale;
   rat.style.width = ratState.width + 'px';
 
   requestAnimationFrame(() => {
     measureRatHeight();
     ratState.y = getRatFloorY();
   });
+}
+
+function spawnRatRight() {
+  ratState.x = window.innerWidth + RAT_RESPAWN_MIN + Math.random() * RAT_RESPAWN_RANGE;
+  ratState.speed = RAT_MIN_SPEED + Math.random() * (RAT_MAX_SPEED - RAT_MIN_SPEED);
+  ratState.scale = RAT_MIN_SCALE + Math.random() * (RAT_MAX_SCALE - RAT_MIN_SCALE);
+  applyRatSize();
 }
 
 function initRat() {
@@ -255,7 +283,7 @@ function updateHud() {
   });
 }
 
-// --- Colisión AABB usando getBoundingClientRect ---
+// --- Colisión AABB ---
 function checkCollision() {
   const a = priscilo.getBoundingClientRect();
   const b = rat.getBoundingClientRect();
@@ -272,13 +300,11 @@ function takeDamage(now) {
   invulnerableUntil = now + INVULN_DURATION_MS;
   priscilo.classList.add('invulnerable');
 
-  // Sonido de daño (una vez por golpe; reset por si llegan golpes muy seguidos)
   ouchAudio.currentTime = 0;
   ouchAudio.play().catch(err => {
     console.warn('No se pudo reproducir el sonido de daño:', err);
   });
 
-  // Reposiciona la rata fuera de pantalla para evitar segundo golpe inmediato
   spawnRatRight();
 
   if (lives <= 0) {
@@ -294,14 +320,39 @@ function triggerGameOver() {
   if (gameOverEl) gameOverEl.classList.remove('hidden');
 }
 
+// --- Pausa ---
+function togglePause() {
+  if (!gameStarted || gameOver) return;
+
+  isPaused = !isPaused;
+
+  if (isPaused) {
+    stopSteps();
+    bgMusic.volume = MUSIC_PAUSE_VOL;
+    if (pauseEl) pauseEl.classList.remove('hidden');
+  } else {
+    bgMusic.volume = MUSIC_VOLUME;
+    if (pauseEl) pauseEl.classList.add('hidden');
+    // Resetear el reloj para evitar delta gigante en el primer frame post-pausa
+    lastTime = performance.now();
+  }
+}
+
 // --- Teclas ---
 const keys = {
   ArrowLeft: false,
   ArrowRight: false,
-  ArrowDown: false
+  ArrowDown: false,
+  ' ': false
 };
 
 window.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    togglePause();
+    e.preventDefault();
+    return;
+  }
+
   if (e.key in keys) {
     keys[e.key] = true;
     e.preventDefault();
@@ -311,6 +362,9 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => {
   if (e.key in keys) {
     keys[e.key] = false;
+    if (e.key === ' ') {
+      jumpKeyReleased = true;
+    }
     e.preventDefault();
   }
 });
@@ -341,19 +395,23 @@ playButton.addEventListener('click', () => {
   }, MUSIC_START_DELAY);
 });
 
-// --- Cambio de sprite Priscilo ---
+// --- Cambio de sprite ---
 function setSprite(src) {
   if (state.currentSrc !== src) {
     priscilo.src = src;
     state.currentSrc = src;
     requestAnimationFrame(() => {
       measureSpriteHeight();
-      state.y = getFloorY();
+      if (!state.isJumping) {
+        state.groundY = getFloorY();
+        state.y = state.groundY;
+      } else {
+        state.groundY = getFloorY();
+      }
     });
   }
 }
 
-// --- Cambio de sprite Rata ---
 function setRatSprite(src) {
   if (ratState.currentSrc !== src) {
     rat.src = src;
@@ -369,16 +427,29 @@ function setRatSprite(src) {
 let lastTime = performance.now();
 
 function loop(now) {
+  // Pausa: saltar toda la lógica, mantener el rAF.
+  // No actualizamos lastTime aquí; lo resetea togglePause al despausar.
+  if (isPaused) {
+    requestAnimationFrame(loop);
+    return;
+  }
+
   const delta = now - lastTime;
   lastTime = now;
 
-  // Quitar parpadeo cuando expira la invulnerabilidad
   if (priscilo.classList.contains('invulnerable') && now >= invulnerableUntil && !gameOver) {
     priscilo.classList.remove('invulnerable');
   }
 
   // ===== JUGADOR =====
-  const crouching = gameStarted && !gameOver && keys.ArrowDown;
+  const crouching = gameStarted && !gameOver && !state.isJumping && keys.ArrowDown;
+
+  if (gameStarted && !gameOver && keys[' '] && jumpKeyReleased &&
+      !state.isJumping && !crouching) {
+    state.isJumping = true;
+    state.velocityY = JUMP_FORCE;
+    jumpKeyReleased = false;
+  }
 
   let dx = 0;
   if (gameStarted && !gameOver && !crouching) {
@@ -407,8 +478,23 @@ function loop(now) {
 
   state.x = nextX;
 
+  let worldShift = 0;
   if (scroll !== 0 && SPEED !== 0) {
-    backgroundOffsetX -= scroll * (WORLD_SCROLL_SPEED / SPEED);
+    worldShift = -scroll * (WORLD_SCROLL_SPEED / SPEED);
+    backgroundOffsetX += worldShift;
+  }
+
+  if (state.isJumping) {
+    state.velocityY += GRAVITY;
+    state.y += state.velocityY;
+
+    if (state.y >= state.groundY) {
+      state.y = state.groundY;
+      state.isJumping = false;
+      state.velocityY = 0;
+    }
+  } else {
+    state.y = state.groundY;
   }
 
   priscilo.style.left = state.x + 'px';
@@ -416,9 +502,17 @@ function loop(now) {
   priscilo.style.transform = `scaleX(${state.facing})`;
   background.style.backgroundPositionX = backgroundOffsetX + 'px';
 
-  // Sprite + sonido de pasos
   if (gameOver) {
     setSprite(SPRITE_IDLE);
+    stopSteps();
+  } else if (state.isJumping) {
+    if (state.velocityY < JUMP_SPRITE_THRESHOLD) {
+      setSprite(SPRITE_JUMP_UP);
+    } else {
+      setSprite(SPRITE_JUMP_DOWN);
+    }
+    state.frameTimer = 0;
+    state.frame = 0;
     stopSteps();
   } else if (crouching) {
     state.frameTimer = 0;
@@ -442,7 +536,8 @@ function loop(now) {
 
   // ===== RATA =====
   if (gameStarted && !gameOver) {
-    ratState.x -= RAT_SPEED;
+    ratState.x -= ratState.speed;
+    ratState.x += worldShift;
 
     if (ratState.x < -ratState.width) {
       spawnRatRight();
@@ -459,7 +554,6 @@ function loop(now) {
   rat.style.left = ratState.x + 'px';
   rat.style.top  = ratState.y + 'px';
 
-  // ===== COLISIÓN =====
   if (gameStarted && !gameOver && now >= invulnerableUntil) {
     if (checkCollision()) {
       takeDamage(now);

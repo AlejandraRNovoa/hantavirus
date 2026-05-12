@@ -136,6 +136,34 @@ html, body {
   transform: scale(0.98);
 }
 
+/* ===== Pause ===== */
+#pause-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+#pause-screen.hidden {
+  display: none;
+}
+
+.pause-text {
+  color: #f2f2f2;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: clamp(40px, 9vw, 140px);
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
+}
+
 /* ===== Game Over ===== */
 #game-over {
   position: fixed;
