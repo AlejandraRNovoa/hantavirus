@@ -68,6 +68,27 @@ html, body {
   -webkit-user-drag: none;
 }
 
+/* Flecha indicadora de puerta */
+#door-arrow {
+  position: absolute;
+  height: auto;
+  width: clamp(48px, 6vw, 96px);
+  z-index: 3;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  animation: door-bounce 0.9s ease-in-out infinite;
+}
+
+#door-arrow.hidden {
+  display: none;
+}
+
+@keyframes door-bounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(14px); }
+}
+
 /* ===== HUD de vidas ===== */
 #hud {
   position: fixed;
@@ -162,6 +183,34 @@ html, body {
   font-size: clamp(40px, 9vw, 140px);
   letter-spacing: 0.15em;
   text-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
+}
+
+/* ===== Entraste ===== */
+#entered-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  pointer-events: none;
+}
+
+#entered-screen.hidden {
+  display: none;
+}
+
+.entered-text {
+  color: #ffe27a;
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: clamp(40px, 9vw, 140px);
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 14px rgba(255, 226, 122, 0.5);
 }
 
 /* ===== Game Over ===== */

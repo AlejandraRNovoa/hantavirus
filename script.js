@@ -8,6 +8,8 @@ const hud         = document.getElementById('hud');
 const rat         = document.getElementById('rat');
 const gameOverEl  = document.getElementById('game-over');
 const pauseEl     = document.getElementById('pause-screen');
+const enteredEl   = document.getElementById('entered-screen');
+const doorArrow   = document.getElementById('door-arrow');
 const lifeIcons   = document.querySelectorAll('#hud .life');
 
 // =============================
@@ -50,6 +52,21 @@ const RAT_MAX_SCALE = 1.2;
 const START_LIVES        = 3;
 const INVULN_DURATION_MS = 1000;
 
+// Puerta
+const DOOR_APPEAR_TIME = 15000;
+const DOOR_WORLD_X     = 4200;
+const DOOR_Y_RATIO     = 0.18;
+const DOOR_ZONE_WIDTH  = 160;
+
+// Ajuste visual de la flecha respecto a la coordenada lógica.
+// Sube DOOR_ARROW_OFFSET_X para mover la flecha a la derecha.
+const DOOR_ARROW_OFFSET_X = 300;
+const DOOR_ARROW_OFFSET_Y = -40;
+
+// Debug
+const DEBUG_DOOR        = false;
+const DEBUG_INTERVAL_MS = 500;
+
 // Audio
 const MUSIC_SRC        = 'elements/sounds/hantasound.mp3';
 const MUSIC_VOLUME     = 0.4;
@@ -83,7 +100,8 @@ const RAT_SPRITES = [
   'elements/img/rata2.png'
 ];
 
-[...SPRITE_WALK, SPRITE_CROUCH, SPRITE_JUMP_UP, SPRITE_JUMP_DOWN, ...RAT_SPRITES].forEach(src => {
+[...SPRITE_WALK, SPRITE_CROUCH, SPRITE_JUMP_UP, SPRITE_JUMP_DOWN, ...RAT_SPRITES,
+ 'elements/img/flechadown.png'].forEach(src => {
   const img = new Image();
   img.src = src;
 });
@@ -117,14 +135,20 @@ const ratState = {
 };
 
 let backgroundOffsetX = 0;
-let gameStarted = false;
-let gameOver    = false;
-let isPaused    = false;
+let gameStarted  = false;
+let gameOver     = false;
+let isPaused     = false;
+let enteredDoor  = false;
 
 let lives = START_LIVES;
 let invulnerableUntil = 0;
 
 let jumpKeyReleased = true;
+
+let gameTime    = 0;
+let doorUnlocked = false;
+
+let debugAccum = 0;
 
 // --- Audio ---
 const bgMusic = new Audio(MUSIC_SRC);
@@ -138,7 +162,7 @@ bgMusic.addEventListener('timeupdate', () => {
   }
 });
 bgMusic.addEventListener('ended', () => {
-  if (gameOver) return;
+  if (gameOver || enteredDoor) return;
   bgMusic.currentTime = MUSIC_LOOP_START;
   bgMusic.play().catch(() => {});
 });
@@ -276,6 +300,60 @@ function initRat() {
 
 initRat();
 
+// --- Puerta (coordenadas de mundo) ---
+function getDoorScreenX() {
+  return DOOR_WORLD_X + backgroundOffsetX;
+}
+
+// Centro visual de la puerta = coordenada lógica + offset visual
+function getDoorVisualX() {
+  return getDoorScreenX() + DOOR_ARROW_OFFSET_X;
+}
+
+function isDoorOnScreen() {
+  const arrowW = doorArrow ? (doorArrow.offsetWidth || 64) : 64;
+  const x = getDoorVisualX();
+  return (x + arrowW / 2) >= 0 && (x - arrowW / 2) <= window.innerWidth;
+}
+
+function updateDoorArrow() {
+  if (!doorArrow) return;
+
+  if (!doorUnlocked) {
+    doorArrow.classList.add('hidden');
+    return;
+  }
+
+  if (!isDoorOnScreen()) {
+    doorArrow.classList.add('hidden');
+    return;
+  }
+
+  doorArrow.classList.remove('hidden');
+
+  const x = getDoorVisualX();
+  const arrowW = doorArrow.offsetWidth || 64;
+  const baseY  = window.innerHeight * DOOR_Y_RATIO;
+  doorArrow.style.left = (x - arrowW / 2) + 'px';
+  doorArrow.style.top  = (baseY + DOOR_ARROW_OFFSET_Y) + 'px';
+}
+
+function isPriscilonNearDoor() {
+  if (!doorUnlocked) return false;
+  const priscilonCenter = state.x + state.width / 2;
+  const doorVisualX     = getDoorVisualX();
+  return Math.abs(priscilonCenter - doorVisualX) <= DOOR_ZONE_WIDTH / 2;
+}
+
+function enterDoor() {
+  if (enteredDoor || gameOver) return;
+  if (!isPriscilonNearDoor()) return;
+  enteredDoor = true;
+  stopSteps();
+  bgMusic.pause();
+  if (enteredEl) enteredEl.classList.remove('hidden');
+}
+
 // --- HUD ---
 function updateHud() {
   lifeIcons.forEach((icon, idx) => {
@@ -322,7 +400,7 @@ function triggerGameOver() {
 
 // --- Pausa ---
 function togglePause() {
-  if (!gameStarted || gameOver) return;
+  if (!gameStarted || gameOver || enteredDoor) return;
 
   isPaused = !isPaused;
 
@@ -333,7 +411,6 @@ function togglePause() {
   } else {
     bgMusic.volume = MUSIC_VOLUME;
     if (pauseEl) pauseEl.classList.add('hidden');
-    // Resetear el reloj para evitar delta gigante en el primer frame post-pausa
     lastTime = performance.now();
   }
 }
@@ -343,6 +420,7 @@ const keys = {
   ArrowLeft: false,
   ArrowRight: false,
   ArrowDown: false,
+  ArrowUp: false,
   ' ': false
 };
 
@@ -354,6 +432,11 @@ window.addEventListener('keydown', (e) => {
   }
 
   if (e.key in keys) {
+    if (e.key === 'ArrowUp' && !keys.ArrowUp) {
+      if (gameStarted && !gameOver && !isPaused && !enteredDoor) {
+        enterDoor();
+      }
+    }
     keys[e.key] = true;
     e.preventDefault();
   }
@@ -373,6 +456,7 @@ window.addEventListener('keyup', (e) => {
 window.addEventListener('resize', () => {
   applyPlayerSize();
   applyRatSize();
+  updateDoorArrow();
 });
 
 // --- Botón Play ---
@@ -427,15 +511,37 @@ function setRatSprite(src) {
 let lastTime = performance.now();
 
 function loop(now) {
-  // Pausa: saltar toda la lógica, mantener el rAF.
-  // No actualizamos lastTime aquí; lo resetea togglePause al despausar.
-  if (isPaused) {
+  if (isPaused || enteredDoor) {
     requestAnimationFrame(loop);
     return;
   }
 
   const delta = now - lastTime;
   lastTime = now;
+
+  if (gameStarted && !gameOver) {
+    gameTime += delta;
+    if (!doorUnlocked && gameTime >= DOOR_APPEAR_TIME) {
+      doorUnlocked = true;
+      if (DEBUG_DOOR) console.log('[DOOR] Desbloqueada por temporizador a los', gameTime.toFixed(0), 'ms');
+    }
+  }
+
+  if (DEBUG_DOOR && gameStarted) {
+    debugAccum += delta;
+    if (debugAccum >= DEBUG_INTERVAL_MS) {
+      debugAccum = 0;
+      const playerCenterX = state.x + state.width / 2;
+      console.log('[DOOR DEBUG]',
+        'bgOffset=', backgroundOffsetX.toFixed(1),
+        'doorVisualX=', getDoorVisualX().toFixed(1),
+        'playerCenterX=', playerCenterX.toFixed(1),
+        'unlocked=', doorUnlocked,
+        'onScreen=', isDoorOnScreen(),
+        'near=', isPriscilonNearDoor()
+      );
+    }
+  }
 
   if (priscilo.classList.contains('invulnerable') && now >= invulnerableUntil && !gameOver) {
     priscilo.classList.remove('invulnerable');
@@ -501,6 +607,8 @@ function loop(now) {
   priscilo.style.top  = state.y + 'px';
   priscilo.style.transform = `scaleX(${state.facing})`;
   background.style.backgroundPositionX = backgroundOffsetX + 'px';
+
+  updateDoorArrow();
 
   if (gameOver) {
     setSprite(SPRITE_IDLE);
