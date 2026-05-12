@@ -65,7 +65,7 @@ const DOOR_WORLD_X     = 3000;
 const DOOR_Y_RATIO     = 0.18;
 const DOOR_ZONE_WIDTH_RATIO = 0.10;
 
-const DOOR_ARROW_OFFSET_X_VH = 0.90;
+const DOOR_ARROW_OFFSET_X_VH = 0.70;
 const DOOR_ARROW_OFFSET_Y_VH = -0.04;
 
 // Debug
