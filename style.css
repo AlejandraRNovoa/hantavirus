@@ -20,22 +20,35 @@ html, body {
   background: #000;
 }
 
-/* Fondo: tile horizontal infinito */
+/* Fondo base */
 #background {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background-image: url("elements/img/background1.png");
-  background-repeat: repeat-x;
-  background-size: auto 115%;
-  background-position: 0 center;
+  background-color: #000;
   image-rendering: pixelated;
   image-rendering: -moz-crisp-edges;
   image-rendering: crisp-edges;
   z-index: 0;
   pointer-events: none;
+}
+
+/* Escena: pasillo del crucero (tile horizontal infinito) */
+#background.scene-hallway {
+  background-image: url("elements/img/background1.png");
+  background-repeat: repeat-x;
+  background-size: auto 115%;
+  background-position: 0 center;
+}
+
+/* Escena: baño (fullscreen, sin bandas) */
+#background.scene-bathroom {
+  background-image: url("elements/img/bathroom1.png");
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center center;
 }
 
 /* Personaje */
@@ -68,6 +81,10 @@ html, body {
   -webkit-user-drag: none;
 }
 
+#rat.hidden {
+  display: none;
+}
+
 /* Flecha indicadora de puerta */
 #door-arrow {
   position: absolute;
@@ -87,6 +104,52 @@ html, body {
 @keyframes door-bounce {
   0%, 100% { transform: translateY(0); }
   50%      { transform: translateY(14px); }
+}
+
+/* Gel hidroalcohólico */
+#sanitizer-item {
+  position: absolute;
+  height: auto;
+  width: clamp(40px, 5vw, 80px);
+  z-index: 2;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  animation: sanitizer-pulse 1.2s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px rgba(120, 220, 255, 0.5));
+}
+
+#sanitizer-item.hidden {
+  display: none;
+}
+
+@keyframes sanitizer-pulse {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    filter: drop-shadow(0 0 6px rgba(120, 220, 255, 0.5));
+  }
+  50% {
+    transform: translateY(-6px) scale(1.06);
+    filter: drop-shadow(0 0 14px rgba(120, 220, 255, 0.95));
+  }
+}
+
+/* ===== Fade screen para transiciones entre escenas ===== */
+#fade-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 9;            /* por debajo de overlays de pausa (10) y game over (11) */
+  transition: opacity 0.4s ease-in-out;
+}
+
+#fade-screen.fade-active {
+  opacity: 1;
 }
 
 /* ===== HUD de vidas ===== */
@@ -183,34 +246,6 @@ html, body {
   font-size: clamp(40px, 9vw, 140px);
   letter-spacing: 0.15em;
   text-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
-}
-
-/* ===== Entraste ===== */
-#entered-screen {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 11;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.75);
-  pointer-events: none;
-}
-
-#entered-screen.hidden {
-  display: none;
-}
-
-.entered-text {
-  color: #ffe27a;
-  font-family: 'Courier New', monospace;
-  font-weight: bold;
-  font-size: clamp(40px, 9vw, 140px);
-  letter-spacing: 0.15em;
-  text-shadow: 0 0 14px rgba(255, 226, 122, 0.5);
 }
 
 /* ===== Game Over ===== */

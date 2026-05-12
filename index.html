@@ -8,10 +8,11 @@
 </head>
 <body>
   <div id="game">
-    <div id="background"></div>
+    <div id="background" class="scene-hallway"></div>
     <img id="priscilo" src="elements/img/priscilom1.png" alt="Priscilo" />
     <img id="rat" src="elements/img/rata1.png" alt="Rata" />
     <img id="door-arrow" class="hidden" src="elements/img/flechadown.png" alt="Puerta" />
+    <img id="sanitizer-item" class="hidden" src="elements/img/sanitizer.png" alt="Gel hidroalcohólico" />
   </div>
 
   <div id="hud" class="hidden">
@@ -20,6 +21,8 @@
     <img class="life" src="elements/img/life.png" alt="Vida" />
   </div>
 
+  <div id="fade-screen"></div>
+
   <div id="start-screen">
     <img id="game-title" src="elements/img/hantavirustitle.png" alt="Hantavirus" />
     <img id="play-button" src="elements/img/playbutton.png" alt="Play" />
@@ -27,10 +30,6 @@
 
   <div id="pause-screen" class="hidden">
     <span class="pause-text">PAUSED</span>
-  </div>
-
-  <div id="entered-screen" class="hidden">
-    <span class="entered-text">ENTRASTE</span>
   </div>
 
   <div id="game-over" class="hidden">

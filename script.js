@@ -8,8 +8,9 @@ const hud         = document.getElementById('hud');
 const rat         = document.getElementById('rat');
 const gameOverEl  = document.getElementById('game-over');
 const pauseEl     = document.getElementById('pause-screen');
-const enteredEl   = document.getElementById('entered-screen');
 const doorArrow   = document.getElementById('door-arrow');
+const sanitizerEl = document.getElementById('sanitizer-item');
+const fadeEl      = document.getElementById('fade-screen');
 const lifeIcons   = document.querySelectorAll('#hud .life');
 
 // =============================
@@ -50,22 +51,28 @@ const RAT_MAX_SCALE = 1.2;
 
 // Vidas / daño
 const START_LIVES        = 3;
+const MAX_LIVES          = 3;
 const INVULN_DURATION_MS = 1000;
 
-// Puerta
+// Puerta (hallway → bathroom)
 const DOOR_APPEAR_TIME = 15000;
 const DOOR_WORLD_X     = 4200;
 const DOOR_Y_RATIO     = 0.18;
 const DOOR_ZONE_WIDTH  = 160;
 
-// Ajuste visual de la flecha respecto a la coordenada lógica.
-// Sube DOOR_ARROW_OFFSET_X para mover la flecha a la derecha.
 const DOOR_ARROW_OFFSET_X = 300;
 const DOOR_ARROW_OFFSET_Y = -40;
 
-// Debug
-const DEBUG_DOOR        = false;
-const DEBUG_INTERVAL_MS = 500;
+// Posición de entrada en el baño
+const BATHROOM_START_X_RATIO = 0.25;
+
+// Gel hidroalcohólico (en el baño)
+const SANITIZER_X_RATIO = 0.50;   // centro horizontal del lavabo
+const SANITIZER_Y_RATIO = 0.58;   // apoyado en la encimera/lavabo (más bajo)
+const SANITIZER_ZONE    = 120;
+
+// Transición fade entre escenas (ms). Debe coincidir con la transición CSS.
+const FADE_DURATION_MS = 400;
 
 // Audio
 const MUSIC_SRC        = 'elements/sounds/hantasound.mp3';
@@ -77,6 +84,8 @@ const STEPS_SRC        = 'elements/sounds/steps.mp3';
 const STEPS_VOLUME     = 0.5;
 const OUCH_SRC         = 'elements/sounds/ouch.mp3';
 const OUCH_VOLUME      = 0.7;
+const SANITIZER_SRC    = 'elements/sounds/sanitizer.mp3';
+const SANITIZER_VOLUME = 0.7;
 
 const MUSIC_START_DELAY = 1000;
 const MUSIC_LOOP_END    = 28.0;
@@ -101,7 +110,8 @@ const RAT_SPRITES = [
 ];
 
 [...SPRITE_WALK, SPRITE_CROUCH, SPRITE_JUMP_UP, SPRITE_JUMP_DOWN, ...RAT_SPRITES,
- 'elements/img/flechadown.png'].forEach(src => {
+ 'elements/img/flechadown.png', 'elements/img/bathroom1.png',
+ 'elements/img/sanitizer.png'].forEach(src => {
   const img = new Image();
   img.src = src;
 });
@@ -138,7 +148,9 @@ let backgroundOffsetX = 0;
 let gameStarted  = false;
 let gameOver     = false;
 let isPaused     = false;
-let enteredDoor  = false;
+let isTransitioning = false;
+
+let currentScene = 'hallway';
 
 let lives = START_LIVES;
 let invulnerableUntil = 0;
@@ -148,7 +160,7 @@ let jumpKeyReleased = true;
 let gameTime    = 0;
 let doorUnlocked = false;
 
-let debugAccum = 0;
+let sanitizerUsed = false;
 
 // --- Audio ---
 const bgMusic = new Audio(MUSIC_SRC);
@@ -162,7 +174,7 @@ bgMusic.addEventListener('timeupdate', () => {
   }
 });
 bgMusic.addEventListener('ended', () => {
-  if (gameOver || enteredDoor) return;
+  if (gameOver) return;
   bgMusic.currentTime = MUSIC_LOOP_START;
   bgMusic.play().catch(() => {});
 });
@@ -194,6 +206,10 @@ function stopSteps() {
 const ouchAudio = new Audio(OUCH_SRC);
 ouchAudio.volume  = OUCH_VOLUME;
 ouchAudio.preload = 'auto';
+
+const sanitizerAudio = new Audio(SANITIZER_SRC);
+sanitizerAudio.volume  = SANITIZER_VOLUME;
+sanitizerAudio.preload = 'auto';
 
 // --- Helpers Priscilo ---
 function computePlayerWidth() {
@@ -231,10 +247,16 @@ function applyPlayerSize() {
     if (!state.isJumping) {
       state.y = state.groundY;
     }
-    const left  = getDeadZoneLeft();
-    const right = getDeadZoneRight();
-    if (state.x < left)  state.x = left;
-    if (state.x > right) state.x = right;
+    if (currentScene === 'hallway') {
+      const left  = getDeadZoneLeft();
+      const right = getDeadZoneRight();
+      if (state.x < left)  state.x = left;
+      if (state.x > right) state.x = right;
+    } else if (currentScene === 'bathroom') {
+      const maxX = window.innerWidth - state.width;
+      if (state.x < 0)    state.x = 0;
+      if (state.x > maxX) state.x = maxX;
+    }
   });
 }
 
@@ -300,12 +322,11 @@ function initRat() {
 
 initRat();
 
-// --- Puerta (coordenadas de mundo) ---
+// --- Puerta (solo hallway) ---
 function getDoorScreenX() {
   return DOOR_WORLD_X + backgroundOffsetX;
 }
 
-// Centro visual de la puerta = coordenada lógica + offset visual
 function getDoorVisualX() {
   return getDoorScreenX() + DOOR_ARROW_OFFSET_X;
 }
@@ -319,12 +340,7 @@ function isDoorOnScreen() {
 function updateDoorArrow() {
   if (!doorArrow) return;
 
-  if (!doorUnlocked) {
-    doorArrow.classList.add('hidden');
-    return;
-  }
-
-  if (!isDoorOnScreen()) {
+  if (currentScene !== 'hallway' || !doorUnlocked || !isDoorOnScreen()) {
     doorArrow.classList.add('hidden');
     return;
   }
@@ -339,19 +355,126 @@ function updateDoorArrow() {
 }
 
 function isPriscilonNearDoor() {
-  if (!doorUnlocked) return false;
+  if (currentScene !== 'hallway' || !doorUnlocked) return false;
   const priscilonCenter = state.x + state.width / 2;
-  const doorVisualX     = getDoorVisualX();
-  return Math.abs(priscilonCenter - doorVisualX) <= DOOR_ZONE_WIDTH / 2;
+  const doorX = getDoorVisualX();
+  return Math.abs(priscilonCenter - doorX) <= DOOR_ZONE_WIDTH / 2;
 }
 
-function enterDoor() {
-  if (enteredDoor || gameOver) return;
-  if (!isPriscilonNearDoor()) return;
-  enteredDoor = true;
+// --- Gel ---
+function getSanitizerX() {
+  return window.innerWidth * SANITIZER_X_RATIO;
+}
+function getSanitizerY() {
+  return window.innerHeight * SANITIZER_Y_RATIO;
+}
+
+function updateSanitizer() {
+  if (!sanitizerEl) return;
+
+  if (currentScene !== 'bathroom' || sanitizerUsed) {
+    sanitizerEl.classList.add('hidden');
+    return;
+  }
+
+  sanitizerEl.classList.remove('hidden');
+
+  const w = sanitizerEl.offsetWidth || 60;
+  const h = sanitizerEl.offsetHeight || 60;
+  sanitizerEl.style.left = (getSanitizerX() - w / 2) + 'px';
+  sanitizerEl.style.top  = (getSanitizerY() - h / 2) + 'px';
+}
+
+function isPriscilonNearSanitizer() {
+  if (currentScene !== 'bathroom' || sanitizerUsed) return false;
+  const priscilonCenter = state.x + state.width / 2;
+  const dx = priscilonCenter - getSanitizerX();
+  return Math.abs(dx) <= SANITIZER_ZONE / 2;
+}
+
+function useSanitizer() {
+  if (sanitizerUsed) return;
+  if (currentScene !== 'bathroom') return;
+  if (lives >= MAX_LIVES) return;
+  if (!isPriscilonNearSanitizer()) return;
+
+  sanitizerUsed = true;
+  lives += 1;
+  updateHud();
+  sanitizerEl.classList.add('hidden');
+
+  sanitizerAudio.currentTime = 0;
+  sanitizerAudio.play().catch(err => {
+    console.warn('No se pudo reproducir el sonido del gel:', err);
+  });
+}
+
+// --- Transición entre escenas (fade to black) ---
+function transitionToScene(sceneName) {
+  if (isTransitioning) return;
+  if (sceneName !== 'hallway' && sceneName !== 'bathroom') return;
+  if (sceneName === currentScene) return;
+
+  isTransitioning = true;
+
+  // Soltar las teclas direccionales/acciones para que al despertar no
+  // se quede caminando solo por una pulsación previa.
+  for (const k in keys) keys[k] = false;
   stopSteps();
-  bgMusic.pause();
-  if (enteredEl) enteredEl.classList.remove('hidden');
+
+  // Paso 1: fundido a negro
+  if (fadeEl) fadeEl.classList.add('fade-active');
+
+  // Paso 2 (en el punto negro): cambiar escena de verdad
+  setTimeout(() => {
+    applySceneChange(sceneName);
+
+    // Paso 3: fundido de vuelta
+    if (fadeEl) fadeEl.classList.remove('fade-active');
+
+    // Paso 4: liberar input cuando se termine el fundido in
+    setTimeout(() => {
+      isTransitioning = false;
+      // Reseteo del reloj del loop para evitar delta gigante
+      lastTime = performance.now();
+    }, FADE_DURATION_MS);
+  }, FADE_DURATION_MS);
+}
+
+function applySceneChange(sceneName) {
+  if (sceneName === 'bathroom') {
+    currentScene = 'bathroom';
+
+    background.classList.remove('scene-hallway');
+    background.classList.add('scene-bathroom');
+
+    rat.classList.add('hidden');
+    doorArrow.classList.add('hidden');
+
+    state.x = window.innerWidth * BATHROOM_START_X_RATIO;
+    state.isJumping = false;
+    state.velocityY = 0;
+    state.y = state.groundY;
+
+    updateSanitizer();
+
+  } else if (sceneName === 'hallway') {
+    currentScene = 'hallway';
+
+    background.classList.remove('scene-bathroom');
+    background.classList.add('scene-hallway');
+
+    rat.classList.remove('hidden');
+    sanitizerEl.classList.add('hidden');
+
+    // Recolocar Priscilo en la dead zone del hallway
+    state.x = (window.innerWidth - state.width) / 2;
+    state.isJumping = false;
+    state.velocityY = 0;
+    state.y = state.groundY;
+
+    updateDoorArrow();
+  }
 }
 
 // --- HUD ---
@@ -400,7 +523,7 @@ function triggerGameOver() {
 
 // --- Pausa ---
 function togglePause() {
-  if (!gameStarted || gameOver || enteredDoor) return;
+  if (!gameStarted || gameOver || isTransitioning) return;
 
   isPaused = !isPaused;
 
@@ -421,7 +544,9 @@ const keys = {
   ArrowRight: false,
   ArrowDown: false,
   ArrowUp: false,
-  ' ': false
+  ' ': false,
+  e: false,
+  E: false
 };
 
 window.addEventListener('keydown', (e) => {
@@ -431,10 +556,24 @@ window.addEventListener('keydown', (e) => {
     return;
   }
 
+  // Bloquear input durante transición
+  if (isTransitioning) {
+    if (e.key in keys) e.preventDefault();
+    return;
+  }
+
   if (e.key in keys) {
     if (e.key === 'ArrowUp' && !keys.ArrowUp) {
-      if (gameStarted && !gameOver && !isPaused && !enteredDoor) {
-        enterDoor();
+      if (gameStarted && !gameOver && !isPaused && currentScene === 'hallway') {
+        // Si está cerca de la puerta, transición al baño
+        if (isPriscilonNearDoor()) {
+          transitionToScene('bathroom');
+        }
+      }
+    }
+    if ((e.key === 'e' || e.key === 'E') && !(keys.e || keys.E)) {
+      if (gameStarted && !gameOver && !isPaused && currentScene === 'bathroom') {
+        useSanitizer();
       }
     }
     keys[e.key] = true;
@@ -457,6 +596,7 @@ window.addEventListener('resize', () => {
   applyPlayerSize();
   applyRatSize();
   updateDoorArrow();
+  updateSanitizer();
 });
 
 // --- Botón Play ---
@@ -511,7 +651,10 @@ function setRatSprite(src) {
 let lastTime = performance.now();
 
 function loop(now) {
-  if (isPaused || enteredDoor) {
+  // Si pausa o transición, salta toda la lógica pero mantén el rAF.
+  // En transición tampoco actualizamos lastTime: lo resetea
+  // transitionToScene al terminar.
+  if (isPaused || isTransitioning) {
     requestAnimationFrame(loop);
     return;
   }
@@ -519,27 +662,10 @@ function loop(now) {
   const delta = now - lastTime;
   lastTime = now;
 
-  if (gameStarted && !gameOver) {
+  if (gameStarted && !gameOver && currentScene === 'hallway') {
     gameTime += delta;
     if (!doorUnlocked && gameTime >= DOOR_APPEAR_TIME) {
       doorUnlocked = true;
-      if (DEBUG_DOOR) console.log('[DOOR] Desbloqueada por temporizador a los', gameTime.toFixed(0), 'ms');
-    }
-  }
-
-  if (DEBUG_DOOR && gameStarted) {
-    debugAccum += delta;
-    if (debugAccum >= DEBUG_INTERVAL_MS) {
-      debugAccum = 0;
-      const playerCenterX = state.x + state.width / 2;
-      console.log('[DOOR DEBUG]',
-        'bgOffset=', backgroundOffsetX.toFixed(1),
-        'doorVisualX=', getDoorVisualX().toFixed(1),
-        'playerCenterX=', playerCenterX.toFixed(1),
-        'unlocked=', doorUnlocked,
-        'onScreen=', isDoorOnScreen(),
-        'near=', isPriscilonNearDoor()
-      );
     }
   }
 
@@ -568,26 +694,39 @@ function loop(now) {
   if (dx < 0) state.facing = -1;
   else if (dx > 0) state.facing = 1;
 
-  const deadLeft  = getDeadZoneLeft();
-  const deadRight = getDeadZoneRight();
-
-  let nextX = state.x + dx;
-  let scroll = 0;
-
-  if (nextX < deadLeft) {
-    scroll = nextX - deadLeft;
-    nextX = deadLeft;
-  } else if (nextX > deadRight) {
-    scroll = nextX - deadRight;
-    nextX = deadRight;
-  }
-
-  state.x = nextX;
-
   let worldShift = 0;
-  if (scroll !== 0 && SPEED !== 0) {
-    worldShift = -scroll * (WORLD_SCROLL_SPEED / SPEED);
-    backgroundOffsetX += worldShift;
+
+  if (currentScene === 'hallway') {
+    const deadLeft  = getDeadZoneLeft();
+    const deadRight = getDeadZoneRight();
+
+    let nextX = state.x + dx;
+    let scroll = 0;
+
+    if (nextX < deadLeft) {
+      scroll = nextX - deadLeft;
+      nextX = deadLeft;
+    } else if (nextX > deadRight) {
+      scroll = nextX - deadRight;
+      nextX = deadRight;
+    }
+
+    state.x = nextX;
+
+    if (scroll !== 0 && SPEED !== 0) {
+      worldShift = -scroll * (WORLD_SCROLL_SPEED / SPEED);
+      backgroundOffsetX += worldShift;
+    }
+
+    background.style.backgroundPositionX = backgroundOffsetX + 'px';
+
+  } else if (currentScene === 'bathroom') {
+    state.x += dx;
+    const maxX = window.innerWidth - state.width;
+    if (state.x < 0)    state.x = 0;
+    if (state.x > maxX) state.x = maxX;
+
+    background.style.backgroundPositionX = '';
   }
 
   if (state.isJumping) {
@@ -606,9 +745,9 @@ function loop(now) {
   priscilo.style.left = state.x + 'px';
   priscilo.style.top  = state.y + 'px';
   priscilo.style.transform = `scaleX(${state.facing})`;
-  background.style.backgroundPositionX = backgroundOffsetX + 'px';
 
   updateDoorArrow();
+  updateSanitizer();
 
   if (gameOver) {
     setSprite(SPRITE_IDLE);
@@ -642,8 +781,7 @@ function loop(now) {
     stopSteps();
   }
 
-  // ===== RATA =====
-  if (gameStarted && !gameOver) {
+  if (currentScene === 'hallway' && gameStarted && !gameOver) {
     ratState.x -= ratState.speed;
     ratState.x += worldShift;
 
@@ -657,12 +795,12 @@ function loop(now) {
       ratState.frame = (ratState.frame + 1) % RAT_SPRITES.length;
       setRatSprite(RAT_SPRITES[ratState.frame]);
     }
+
+    rat.style.left = ratState.x + 'px';
+    rat.style.top  = ratState.y + 'px';
   }
 
-  rat.style.left = ratState.x + 'px';
-  rat.style.top  = ratState.y + 'px';
-
-  if (gameStarted && !gameOver && now >= invulnerableUntil) {
+  if (currentScene === 'hallway' && gameStarted && !gameOver && now >= invulnerableUntil) {
     if (checkCollision()) {
       takeDamage(now);
     }
