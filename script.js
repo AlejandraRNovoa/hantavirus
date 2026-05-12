@@ -25,6 +25,7 @@ const FLOOR_Y_RATIO = 0.78;
 const PLAYER_WIDTH_RATIO = 0.10;
 const PLAYER_MIN_WIDTH   = 110;
 const PLAYER_MAX_WIDTH   = 220;
+const PLAYER_MOBILE_SCALE = 0.88;   // Reducción ~12% sólo en móvil/touch
 
 const SPEED = 4;
 const WORLD_SCROLL_SPEED = 4;
@@ -65,7 +66,7 @@ const DOOR_WORLD_X     = 3000;
 const DOOR_Y_RATIO     = 0.18;
 const DOOR_ZONE_WIDTH_RATIO = 0.10;
 
-const DOOR_ARROW_OFFSET_X_VH = 0.70;
+const DOOR_ARROW_OFFSET_X_VH = 0.45;
 const DOOR_ARROW_OFFSET_Y_VH = -0.04;
 
 // Debug
@@ -221,9 +222,16 @@ sanitizerAudio.volume  = SANITIZER_VOLUME;
 sanitizerAudio.preload = 'auto';
 
 // --- Helpers Priscilo ---
+// Detección de móvil/touch coherente con el CSS (#mobile-controls usa la misma media query).
+const isMobileQuery = window.matchMedia('(hover: none) and (pointer: coarse)');
+function isMobileDevice() { return isMobileQuery.matches; }
+
 function computePlayerWidth() {
   const raw = getGameWidth() * PLAYER_WIDTH_RATIO;
-  return Math.max(PLAYER_MIN_WIDTH, Math.min(PLAYER_MAX_WIDTH, raw));
+  const clamped = Math.max(PLAYER_MIN_WIDTH, Math.min(PLAYER_MAX_WIDTH, raw));
+  // En móvil reducimos ligeramente el sprite para que el escenario respire.
+  // state.height se mide del DOM tras aplicar el width, así que se ajusta solo.
+  return isMobileDevice() ? clamped * PLAYER_MOBILE_SCALE : clamped;
 }
 
 function getFloorY() {
