@@ -14,6 +14,8 @@ const sanitizerEl = document.getElementById('sanitizer-item');
 const fadeEl      = document.getElementById('fade-screen');
 const lifeIcons   = document.querySelectorAll('#hud .life');
 const mobileCtrls = document.getElementById('mobile-controls');
+const pauseButton = document.getElementById('pause-button');
+const orientationWarning = document.getElementById('orientation-warning');
 
 // =============================
 //  CONSTANTES AJUSTABLES
@@ -164,6 +166,10 @@ let doorUnlocked = false;
 let sanitizerUsed = false;
 
 let debugAccum = 0;
+
+// Tiempo del último frame del bucle principal.
+// Se declara aquí (antes de que applyOrientationState lo use al cargar).
+let lastTime = performance.now();
 
 // --- Audio ---
 const bgMusic = new Audio(MUSIC_SRC);
@@ -504,17 +510,30 @@ function togglePause() {
 }
 
 // --- Teclas ---
+// Teclas registradas.
+//  - a/A          : saltar (sustituye al espacio como salto principal)
+//  - s/S          : recoger / interactuar (alias de e/E)
+//  - c/C, ' '     : disparar (input preparado, sin lógica todavía)
+//  - ArrowLeft/Right/Up/Down: movimiento, interacción contextual con puerta y agacharse
+//  - e/E          : recoger (legacy, se mantiene)
 const keys = {
   ArrowLeft: false,
   ArrowRight: false,
   ArrowDown: false,
   ArrowUp: false,
   ' ': false,
-  e: false,
-  E: false
+  a: false, A: false,
+  s: false, S: false,
+  c: false, C: false,
+  e: false, E: false
 };
 
-// Acción contextual: prioriza interactuar con puerta/gel; si no, agacharse.
+// Helpers semánticos: cualquier variante de una "acción" cuenta.
+function isJumpPressed()        { return keys.a || keys.A; }
+function isInteractPressed()    { return keys.s || keys.S || keys.e || keys.E; }
+// function isFirePressed()      { return keys.c || keys.C || keys[' ']; } // TODO: usar cuando exista disparo
+
+// Acción contextual: prioriza interactuar con puerta/gel; si no, no hace nada.
 function doContextAction() {
   if (gameOver || isPaused || isTransitioning || !gameStarted) return;
   if (currentScene === 'hallway' && isPriscilonNearDoor()) {
@@ -525,13 +544,23 @@ function doContextAction() {
     useSanitizer();
     return;
   }
-  // Si no hay interacción posible, agacharse mientras el botón esté pulsado.
-  // Esto lo gestiona keys.ArrowDown en los handlers de los botones.
 }
 
 window.addEventListener('keydown', (e) => {
+  // Enter: start en pantalla inicial, pausa si ya empezó.
   if (e.key === 'Enter') {
-    togglePause();
+    if (!gameStarted) {
+      startGame();
+    } else {
+      togglePause();
+    }
+    e.preventDefault();
+    return;
+  }
+
+  // Escape: pausa/continuar (no arranca el juego para no chocar con "salir" del navegador).
+  if (e.key === 'Escape') {
+    if (gameStarted) togglePause();
     e.preventDefault();
     return;
   }
@@ -542,6 +571,7 @@ window.addEventListener('keydown', (e) => {
   }
 
   if (e.key in keys) {
+    // Flecha arriba: interacción con la puerta en hallway.
     if (e.key === 'ArrowUp' && !keys.ArrowUp) {
       if (gameStarted && !gameOver && !isPaused && currentScene === 'hallway') {
         if (isPriscilonNearDoor()) {
@@ -549,9 +579,11 @@ window.addEventListener('keydown', (e) => {
         }
       }
     }
-    if ((e.key === 'e' || e.key === 'E') && !(keys.e || keys.E)) {
-      if (gameStarted && !gameOver && !isPaused && currentScene === 'bathroom') {
-        useSanitizer();
+    // S / E: interacción contextual (recoger sanitizer, o puerta si aplica).
+    if ((e.key === 's' || e.key === 'S' || e.key === 'e' || e.key === 'E')
+        && !(keys.s || keys.S || keys.e || keys.E)) {
+      if (gameStarted && !gameOver && !isPaused) {
+        doContextAction();
       }
     }
     keys[e.key] = true;
@@ -562,35 +594,53 @@ window.addEventListener('keydown', (e) => {
 window.addEventListener('keyup', (e) => {
   if (e.key in keys) {
     keys[e.key] = false;
-    if (e.key === ' ') jumpKeyReleased = true;
+    // Cuando se suelta cualquier tecla de salto, rearmar el flag.
+    if (e.key === 'a' || e.key === 'A') jumpKeyReleased = true;
     e.preventDefault();
   }
 });
 
 // --- Controles móviles ---
-// Enchufa los botones al MISMO objeto `keys`. No duplica lógica.
+// Enchufa los botones al MISMO objeto `keys`. No duplica lógica de juego.
 if (mobileCtrls) {
   const buttons = mobileCtrls.querySelectorAll('.mc-btn');
 
   buttons.forEach(btn => {
-    const keyName = btn.getAttribute('data-key'); // 'ArrowLeft', 'ArrowRight', ' '
-    const action  = btn.getAttribute('data-action'); // 'action'
+    const keyName = btn.getAttribute('data-key');     // 'ArrowLeft', 'a', 's', 'c', ...
+    const action  = btn.getAttribute('data-action');  // 'action' (legacy)
 
     const press = (ev) => {
       ev.preventDefault();
       btn.classList.add('pressed');
       if (isTransitioning) return;
 
+      // Legacy: botón "action" contextual + agacharse mientras se mantiene.
       if (action === 'action') {
-        // Intento de interacción contextual (puerta o gel)
         doContextAction();
-        // Además, simula ArrowDown para poder agacharse manteniendo pulsado
         if (gameStarted && !gameOver && !isPaused) {
           keys.ArrowDown = true;
         }
-      } else if (keyName) {
-        keys[keyName] = true;
+        return;
       }
+
+      if (!keyName) return;
+
+      // Disparos one-shot al pulsar (replican lo que hace keydown).
+      if (keyName === 'ArrowUp' && !keys.ArrowUp) {
+        if (gameStarted && !gameOver && !isPaused && currentScene === 'hallway') {
+          if (isPriscilonNearDoor()) {
+            transitionToScene('bathroom');
+          }
+        }
+      }
+      if ((keyName === 's' || keyName === 'S' || keyName === 'e' || keyName === 'E')
+          && !(keys.s || keys.S || keys.e || keys.E)) {
+        if (gameStarted && !gameOver && !isPaused) {
+          doContextAction();
+        }
+      }
+
+      keys[keyName] = true;
     };
 
     const release = (ev) => {
@@ -599,22 +649,66 @@ if (mobileCtrls) {
 
       if (action === 'action') {
         keys.ArrowDown = false;
-      } else if (keyName) {
-        keys[keyName] = false;
-        if (keyName === ' ') jumpKeyReleased = true;
+        return;
       }
+
+      if (!keyName) return;
+      keys[keyName] = false;
+      // Rearmar el flag de salto al soltar A.
+      if (keyName === 'a' || keyName === 'A') jumpKeyReleased = true;
     };
 
     btn.addEventListener('pointerdown', press);
     btn.addEventListener('pointerup', release);
     btn.addEventListener('pointercancel', release);
     btn.addEventListener('pointerleave', release);
-    // Evita el "click fantasma" tras pointer events
     btn.addEventListener('click', (e) => e.preventDefault());
-    // Evita menú contextual en móvil por mantener pulsado
     btn.addEventListener('contextmenu', (e) => e.preventDefault());
   });
 }
+
+// --- Botón de pausa flotante ---
+if (pauseButton) {
+  const onPauseClick = (ev) => {
+    ev.preventDefault();
+    if (!gameStarted) {
+      startGame();
+    } else {
+      togglePause();
+    }
+  };
+  pauseButton.addEventListener('click', onPauseClick);
+  pauseButton.addEventListener('contextmenu', (e) => e.preventDefault());
+}
+
+// --- Bloqueo por orientación (sólo móvil portrait) ---
+let orientationBlocked = false;
+const orientationQuery = window.matchMedia('(orientation: portrait) and (pointer: coarse)');
+
+function applyOrientationState() {
+  const portrait = orientationQuery.matches;
+  orientationBlocked = portrait;
+  if (orientationWarning) {
+    orientationWarning.classList.toggle('hidden', !portrait);
+  }
+  if (portrait) {
+    // Al entrar en portrait: limpiar inputs y parar pasos para que nada quede "atascado".
+    for (const k in keys) keys[k] = false;
+    jumpKeyReleased = true;
+    stopSteps();
+  } else {
+    // Al volver a landscape evitamos un delta gigante en el loop.
+    lastTime = performance.now();
+  }
+}
+
+// Listener compatible: addEventListener moderno + fallback legacy.
+if (orientationQuery.addEventListener) {
+  orientationQuery.addEventListener('change', applyOrientationState);
+} else if (orientationQuery.addListener) {
+  orientationQuery.addListener(applyOrientationState);
+}
+applyOrientationState();
 
 // --- Resize ---
 window.addEventListener('resize', () => {
@@ -625,7 +719,8 @@ window.addEventListener('resize', () => {
 });
 
 // --- Botón Play ---
-playButton.addEventListener('click', () => {
+function startGame() {
+  if (gameStarted) return;
   startScreen.classList.add('hidden');
   hud.classList.remove('hidden');
   gameStarted = true;
@@ -642,7 +737,9 @@ playButton.addEventListener('click', () => {
       console.warn('No se pudo iniciar la música:', err);
     });
   }, MUSIC_START_DELAY);
-});
+}
+
+playButton.addEventListener('click', startGame);
 
 // --- Cambio de sprite ---
 function setSprite(src) {
@@ -673,10 +770,8 @@ function setRatSprite(src) {
 }
 
 // --- Bucle principal ---
-let lastTime = performance.now();
-
 function loop(now) {
-  if (isPaused || isTransitioning) {
+  if (isPaused || isTransitioning || orientationBlocked) {
     requestAnimationFrame(loop);
     return;
   }
@@ -716,7 +811,7 @@ function loop(now) {
 
   const crouching = gameStarted && !gameOver && !state.isJumping && keys.ArrowDown;
 
-  if (gameStarted && !gameOver && keys[' '] && jumpKeyReleased &&
+  if (gameStarted && !gameOver && isJumpPressed() && jumpKeyReleased &&
       !state.isJumping && !crouching) {
     state.isJumping = true;
     state.velocityY = JUMP_FORCE;

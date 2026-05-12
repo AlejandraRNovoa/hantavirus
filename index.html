@@ -26,13 +26,40 @@
   <!-- Controles táctiles (sólo visibles en dispositivos pointer:coarse) -->
   <div id="mobile-controls" aria-hidden="true">
     <div class="mc-left">
-      <button class="mc-btn" data-key="ArrowLeft" aria-label="Izquierda">◀</button>
-      <button class="mc-btn" data-key="ArrowRight" aria-label="Derecha">▶</button>
+      <div class="mc-dpad">
+        <button class="mc-btn mc-dpad-up"    data-key="ArrowUp"    aria-label="Arriba">
+          <img src="elements/img/flechaARRIBA.png" alt="" />
+        </button>
+        <button class="mc-btn mc-dpad-left"  data-key="ArrowLeft"  aria-label="Izquierda">
+          <img src="elements/img/flechaIZQ.png" alt="" />
+        </button>
+        <button class="mc-btn mc-dpad-down"  data-key="ArrowDown"  aria-label="Abajo">
+          <img src="elements/img/flechaABAJO.png" alt="" />
+        </button>
+        <button class="mc-btn mc-dpad-right" data-key="ArrowRight" aria-label="Derecha">
+          <img src="elements/img/flechaDRCH.png" alt="" />
+        </button>
+      </div>
     </div>
     <div class="mc-right">
-      <button class="mc-btn" data-action="action" aria-label="Acción">●</button>
-      <button class="mc-btn" data-key=" " aria-label="Saltar">▲</button>
+      <button class="mc-btn mc-action" data-key="a" aria-label="Saltar (A)">
+        <img src="elements/img/abutton.png" alt="" />
+      </button>
+      <button class="mc-btn mc-action" data-key="s" aria-label="Recoger (B)">
+        <img src="elements/img/bbutton.png" alt="" />
+      </button>
+      <button class="mc-btn mc-action" data-key="c" aria-label="Disparar (C)">
+        <img src="elements/img/cbutton.png" alt="" />
+      </button>
     </div>
+  </div>
+
+  <!-- Botón de pausa (visible en móvil y desktop) -->
+  <button id="pause-button" aria-label="Pausa">II</button>
+
+  <!-- Aviso de orientación (sólo móvil en vertical) -->
+  <div id="orientation-warning" class="hidden">
+    <span class="orientation-text">Gira el dispositivo</span>
   </div>
 
   <div id="fade-screen"></div>
