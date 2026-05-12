@@ -1,5 +1,6 @@
 // ===== Hantavirus - Pantalla 1 =====
 
+const game        = document.getElementById('game');
 const priscilo    = document.getElementById('priscilo');
 const background  = document.getElementById('background');
 const startScreen = document.getElementById('start-screen');
@@ -18,9 +19,10 @@ const lifeIcons   = document.querySelectorAll('#hud .life');
 // =============================
 const FLOOR_Y_RATIO = 0.78;
 
-const PLAYER_WIDTH_VW  = 10;
-const PLAYER_MIN_WIDTH = 160;
-const PLAYER_MAX_WIDTH = 160;
+// Tamaño del jugador como proporción del ANCHO del area de juego (no viewport)
+const PLAYER_WIDTH_RATIO = 0.10;
+const PLAYER_MIN_WIDTH   = 110;
+const PLAYER_MAX_WIDTH   = 220;
 
 const SPEED = 4;
 const WORLD_SCROLL_SPEED = 4;
@@ -35,9 +37,9 @@ const GRAVITY    = 0.60;
 const JUMP_SPRITE_THRESHOLD = -3;
 
 // Rata
-const RAT_WIDTH_VW       = 4;
-const RAT_MIN_WIDTH      = 100;
-const RAT_MAX_WIDTH      = 100;
+const RAT_WIDTH_RATIO    = 0.06;
+const RAT_MIN_WIDTH      = 70;
+const RAT_MAX_WIDTH      = 130;
 const RAT_FLOOR_Y_RATIO  = 0.78;
 const RAT_FRAME_INTERVAL = 150;
 const RAT_RESPAWN_MIN    = 200;
@@ -58,18 +60,19 @@ const INVULN_DURATION_MS = 1000;
 const DOOR_APPEAR_TIME = 15000;
 const DOOR_WORLD_X     = 4200;
 const DOOR_Y_RATIO     = 0.18;
-const DOOR_ZONE_WIDTH  = 160;
+const DOOR_ZONE_WIDTH_RATIO = 0.10;   // proporción del ancho del area de juego
 
-const DOOR_ARROW_OFFSET_X_VH = 0.30;   // proporción del alto del viewport
-const DOOR_ARROW_OFFSET_Y_VH = -0.04;  // proporción del alto del viewport
+// Offsets de la flecha como proporción del ALTO del area de juego.
+const DOOR_ARROW_OFFSET_X_VH = 0.30;
+const DOOR_ARROW_OFFSET_Y_VH = -0.04;
 
 // Posición de entrada en el baño
 const BATHROOM_START_X_RATIO = 0.25;
 
 // Gel hidroalcohólico (en el baño)
 const SANITIZER_X_RATIO = 0.46;
-const SANITIZER_Y_RATIO = 0.43;
-const SANITIZER_ZONE    = 120;
+const SANITIZER_Y_RATIO = 0.49;       // ligeramente más bajo (era 0.43)
+const SANITIZER_ZONE_RATIO = 0.08;    // proporción del ancho del area de juego
 
 // Transición fade entre escenas (ms). Debe coincidir con la transición CSS.
 const FADE_DURATION_MS = 400;
@@ -91,6 +94,12 @@ const MUSIC_START_DELAY = 1000;
 const MUSIC_LOOP_END    = 28.0;
 const MUSIC_LOOP_START  = 0.0;
 // =============================
+
+// --- Helpers de tamaño del área de juego ---
+// Estas funciones son la clave del responsive estable: TODO se calcula
+// relativo al área 16:9, no al viewport.
+function getGameWidth()  { return game.clientWidth; }
+function getGameHeight() { return game.clientHeight; }
 
 // --- Sprites ---
 const SPRITE_IDLE      = 'elements/img/priscilom1.png';
@@ -213,12 +222,12 @@ sanitizerAudio.preload = 'auto';
 
 // --- Helpers Priscilo ---
 function computePlayerWidth() {
-  const raw = window.innerWidth * (PLAYER_WIDTH_VW / 100);
+  const raw = getGameWidth() * PLAYER_WIDTH_RATIO;
   return Math.max(PLAYER_MIN_WIDTH, Math.min(PLAYER_MAX_WIDTH, raw));
 }
 
 function getFloorY() {
-  return window.innerHeight * FLOOR_Y_RATIO - state.height;
+  return getGameHeight() * FLOOR_Y_RATIO - state.height;
 }
 
 function measureSpriteHeight() {
@@ -227,14 +236,14 @@ function measureSpriteHeight() {
 }
 
 function getDeadZoneLeft() {
-  return window.innerWidth * DEAD_ZONE_LEFT_RATIO;
+  return getGameWidth() * DEAD_ZONE_LEFT_RATIO;
 }
 function getDeadZoneRight() {
-  return window.innerWidth * DEAD_ZONE_RIGHT_RATIO - state.width;
+  return getGameWidth() * DEAD_ZONE_RIGHT_RATIO - state.width;
 }
 
 function centerPriscilo() {
-  state.x = (window.innerWidth - state.width) / 2;
+  state.x = (getGameWidth() - state.width) / 2;
 }
 
 function applyPlayerSize() {
@@ -253,7 +262,7 @@ function applyPlayerSize() {
       if (state.x < left)  state.x = left;
       if (state.x > right) state.x = right;
     } else if (currentScene === 'bathroom') {
-      const maxX = window.innerWidth - state.width;
+      const maxX = getGameWidth() - state.width;
       if (state.x < 0)    state.x = 0;
       if (state.x > maxX) state.x = maxX;
     }
@@ -278,12 +287,12 @@ initSize();
 
 // --- Helpers Rata ---
 function computeRatWidth() {
-  const raw = window.innerWidth * (RAT_WIDTH_VW / 100);
+  const raw = getGameWidth() * RAT_WIDTH_RATIO;
   return Math.max(RAT_MIN_WIDTH, Math.min(RAT_MAX_WIDTH, raw));
 }
 
 function getRatFloorY() {
-  return window.innerHeight * RAT_FLOOR_Y_RATIO - ratState.height;
+  return getGameHeight() * RAT_FLOOR_Y_RATIO - ratState.height;
 }
 
 function measureRatHeight() {
@@ -303,7 +312,7 @@ function applyRatSize() {
 }
 
 function spawnRatRight() {
-  ratState.x = window.innerWidth + RAT_RESPAWN_MIN + Math.random() * RAT_RESPAWN_RANGE;
+  ratState.x = getGameWidth() + RAT_RESPAWN_MIN + Math.random() * RAT_RESPAWN_RANGE;
   ratState.speed = RAT_MIN_SPEED + Math.random() * (RAT_MAX_SPEED - RAT_MIN_SPEED);
   ratState.scale = RAT_MIN_SCALE + Math.random() * (RAT_MAX_SCALE - RAT_MIN_SCALE);
   applyRatSize();
@@ -328,13 +337,13 @@ function getDoorScreenX() {
 }
 
 function getDoorVisualX() {
-  return getDoorScreenX() + window.innerHeight * DOOR_ARROW_OFFSET_X_VH;
+  return getDoorScreenX() + getGameHeight() * DOOR_ARROW_OFFSET_X_VH;
 }
 
 function isDoorOnScreen() {
   const arrowW = doorArrow ? (doorArrow.offsetWidth || 64) : 64;
   const x = getDoorVisualX();
-  return (x + arrowW / 2) >= 0 && (x - arrowW / 2) <= window.innerWidth;
+  return (x + arrowW / 2) >= 0 && (x - arrowW / 2) <= getGameWidth();
 }
 
 function updateDoorArrow() {
@@ -349,24 +358,25 @@ function updateDoorArrow() {
 
   const x = getDoorVisualX();
   const arrowW = doorArrow.offsetWidth || 64;
-  const baseY  = window.innerHeight * DOOR_Y_RATIO;
+  const baseY  = getGameHeight() * DOOR_Y_RATIO;
   doorArrow.style.left = (x - arrowW / 2) + 'px';
-  doorArrow.style.top  = (baseY + window.innerHeight * DOOR_ARROW_OFFSET_Y_VH) + 'px';
+  doorArrow.style.top  = (baseY + getGameHeight() * DOOR_ARROW_OFFSET_Y_VH) + 'px';
 }
 
 function isPriscilonNearDoor() {
   if (currentScene !== 'hallway' || !doorUnlocked) return false;
   const priscilonCenter = state.x + state.width / 2;
   const doorX = getDoorVisualX();
-  return Math.abs(priscilonCenter - doorX) <= DOOR_ZONE_WIDTH / 2;
+  const zone  = getGameWidth() * DOOR_ZONE_WIDTH_RATIO;
+  return Math.abs(priscilonCenter - doorX) <= zone / 2;
 }
 
 // --- Gel ---
 function getSanitizerX() {
-  return window.innerWidth * SANITIZER_X_RATIO;
+  return getGameWidth() * SANITIZER_X_RATIO;
 }
 function getSanitizerY() {
-  return window.innerHeight * SANITIZER_Y_RATIO;
+  return getGameHeight() * SANITIZER_Y_RATIO;
 }
 
 function updateSanitizer() {
@@ -389,7 +399,8 @@ function isPriscilonNearSanitizer() {
   if (currentScene !== 'bathroom' || sanitizerUsed) return false;
   const priscilonCenter = state.x + state.width / 2;
   const dx = priscilonCenter - getSanitizerX();
-  return Math.abs(dx) <= SANITIZER_ZONE / 2;
+  const zone = getGameWidth() * SANITIZER_ZONE_RATIO;
+  return Math.abs(dx) <= zone / 2;
 }
 
 function useSanitizer() {
@@ -417,25 +428,18 @@ function transitionToScene(sceneName) {
 
   isTransitioning = true;
 
-  // Soltar las teclas direccionales/acciones para que al despertar no
-  // se quede caminando solo por una pulsación previa.
   for (const k in keys) keys[k] = false;
   stopSteps();
 
-  // Paso 1: fundido a negro
   if (fadeEl) fadeEl.classList.add('fade-active');
 
-  // Paso 2 (en el punto negro): cambiar escena de verdad
   setTimeout(() => {
     applySceneChange(sceneName);
 
-    // Paso 3: fundido de vuelta
     if (fadeEl) fadeEl.classList.remove('fade-active');
 
-    // Paso 4: liberar input cuando se termine el fundido in
     setTimeout(() => {
       isTransitioning = false;
-      // Reseteo del reloj del loop para evitar delta gigante
       lastTime = performance.now();
     }, FADE_DURATION_MS);
   }, FADE_DURATION_MS);
@@ -451,7 +455,7 @@ function applySceneChange(sceneName) {
     rat.classList.add('hidden');
     doorArrow.classList.add('hidden');
 
-    state.x = window.innerWidth * BATHROOM_START_X_RATIO;
+    state.x = getGameWidth() * BATHROOM_START_X_RATIO;
     state.isJumping = false;
     state.velocityY = 0;
     state.y = state.groundY;
@@ -467,8 +471,7 @@ function applySceneChange(sceneName) {
     rat.classList.remove('hidden');
     sanitizerEl.classList.add('hidden');
 
-    // Recolocar Priscilo en la dead zone del hallway
-    state.x = (window.innerWidth - state.width) / 2;
+    state.x = (getGameWidth() - state.width) / 2;
     state.isJumping = false;
     state.velocityY = 0;
     state.y = state.groundY;
@@ -556,7 +559,6 @@ window.addEventListener('keydown', (e) => {
     return;
   }
 
-  // Bloquear input durante transición
   if (isTransitioning) {
     if (e.key in keys) e.preventDefault();
     return;
@@ -565,7 +567,6 @@ window.addEventListener('keydown', (e) => {
   if (e.key in keys) {
     if (e.key === 'ArrowUp' && !keys.ArrowUp) {
       if (gameStarted && !gameOver && !isPaused && currentScene === 'hallway') {
-        // Si está cerca de la puerta, transición al baño
         if (isPriscilonNearDoor()) {
           transitionToScene('bathroom');
         }
@@ -651,9 +652,6 @@ function setRatSprite(src) {
 let lastTime = performance.now();
 
 function loop(now) {
-  // Si pausa o transición, salta toda la lógica pero mantén el rAF.
-  // En transición tampoco actualizamos lastTime: lo resetea
-  // transitionToScene al terminar.
   if (isPaused || isTransitioning) {
     requestAnimationFrame(loop);
     return;
@@ -722,7 +720,7 @@ function loop(now) {
 
   } else if (currentScene === 'bathroom') {
     state.x += dx;
-    const maxX = window.innerWidth - state.width;
+    const maxX = getGameWidth() - state.width;
     if (state.x < 0)    state.x = 0;
     if (state.x > maxX) state.x = maxX;
 

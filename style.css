@@ -12,10 +12,25 @@ html, body {
   font-family: sans-serif;
 }
 
-#game {
-  position: relative;
+/* Wrapper: ocupa toda la pantalla, centra el juego, deja bandas negras */
+#game-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 100vw;
   height: 100vh;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Juego: aspect ratio fijo 16:9, posicionado dentro del wrapper */
+#game {
+  position: relative;
+  width: min(100vw, calc(100vh * 16 / 9));
+  height: min(100vh, calc(100vw * 9 / 16));
   overflow: hidden;
   background: #000;
 }
@@ -43,7 +58,7 @@ html, body {
   background-position: 0 center;
 }
 
-/* Escena: baño (fullscreen, sin bandas) */
+/* Escena: baño (fullscreen del game, sin bandas internas) */
 #background.scene-bathroom {
   background-image: url("elements/img/bathroom1.png");
   background-repeat: no-repeat;
@@ -144,7 +159,7 @@ html, body {
   background: #000;
   opacity: 0;
   pointer-events: none;
-  z-index: 9;            /* por debajo de overlays de pausa (10) y game over (11) */
+  z-index: 9;
   transition: opacity 0.4s ease-in-out;
 }
 
