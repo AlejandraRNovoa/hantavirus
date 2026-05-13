@@ -194,42 +194,27 @@ html, body {
   display: none;                 /* Por defecto ocultos */
   justify-content: space-between;
   align-items: flex-end;
-  padding: 1.5vh 2.5vw;
+  padding: 2vh 3vw;
   pointer-events: none;          /* Solo los botones reciben pointer */
   touch-action: none;
 }
 
 #mobile-controls .mc-left,
 #mobile-controls .mc-right {
-  pointer-events: auto;
   display: flex;
-  align-items: center;
-}
-
-#mobile-controls .mc-right {
-  gap: 1.2vw;
-}
-
-/* Cruceta de dirección (3x3 con huecos vacíos) */
-.mc-dpad {
-  display: grid;
-  grid-template-columns: repeat(3, auto);
-  grid-template-rows: repeat(2, auto);
-  gap: 0.4vw;
+  gap: 1.5vw;
   pointer-events: auto;
 }
-
-.mc-dpad-up    { grid-column: 2; grid-row: 1; }
-.mc-dpad-left  { grid-column: 1; grid-row: 2; }
-.mc-dpad-down  { grid-column: 2; grid-row: 2; }
-.mc-dpad-right { grid-column: 3; grid-row: 2; }
 
 .mc-btn {
-  width: clamp(40px, 8vw, 64px);
-  height: clamp(40px, 8vw, 64px);
-  border: none;
-  background: transparent;       /* El PNG ya aporta el aspecto del botón */
-  padding: 0;
+  width: clamp(56px, 12vw, 92px);
+  height: clamp(56px, 12vw, 92px);
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: clamp(20px, 5vw, 36px);
+  font-weight: bold;
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -241,96 +226,39 @@ html, body {
   pointer-events: auto;
 }
 
-.mc-btn img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  pointer-events: none;          /* El click llega al botón, no a la imagen */
-  user-select: none;
-  -webkit-user-drag: none;
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
-}
-
 .mc-btn:active,
 .mc-btn.pressed {
-  transform: scale(0.92);
-  filter: brightness(1.25);
+  background: rgba(255, 255, 255, 0.25);
+  transform: scale(0.96);
 }
 
 /* Mostrar solo en dispositivos táctiles */
 @media (hover: none) and (pointer: coarse) {
+  /* Reservar franja inferior en móvil para que los controles no se solapen con #game.
+     #game-wrapper usa display:flex + align-items:center, así que el padding-bottom
+     reduce el alto efectivo de centrado y empuja el área 16:9 hacia arriba.
+     #game ya hace min(100vh, ...) → al reducir el alto disponible del wrapper,
+     #game encoge proporcionalmente manteniendo 16:9 y aparece franja negra
+     superior e inferior. Los controles fixed:bottom:0 quedan en la franja inferior. */
+  #game-wrapper {
+    padding-bottom: calc(clamp(70px, 15vw, 120px) + 4vh + env(safe-area-inset-bottom, 0px));
+  }
+
   #mobile-controls {
     display: flex;
+    /* Más pegados a bordes y fondo, respetando safe-area de iPhone (notch/home indicator). */
+    padding:
+      1vh
+      calc(1.5vw + env(safe-area-inset-right, 0px))
+      calc(1vh + env(safe-area-inset-bottom, 0px))
+      calc(1.5vw + env(safe-area-inset-left, 0px));
   }
-}
 
-/* ===== Botón de pausa flotante ===== */
-#pause-button {
-  position: fixed;
-  top: 2vh;
-  left: 2vw;
-  z-index: 7;
-  width: clamp(32px, 5vw, 48px);
-  height: clamp(32px, 5vw, 48px);
-  border: 2px solid rgba(255, 255, 255, 0.7);
-  background: rgba(0, 0, 0, 0.55);
-  color: #f2f2f2;
-  font-family: 'Courier New', monospace;
-  font-weight: bold;
-  font-size: clamp(14px, 2.2vw, 20px);
-  letter-spacing: 0.1em;
-  border-radius: 4px;            /* Estilo retro: esquinas casi rectas */
-  cursor: pointer;
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: auto;
-}
-
-#pause-button.hidden {
-  display: none;
-}
-
-#pause-button:active {
-  transform: scale(0.94);
-  background: rgba(255, 255, 255, 0.15);
-}
-
-/* ===== Aviso de orientación (sólo móvil portrait) ===== */
-#orientation-warning {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
-  z-index: 99;                   /* Por encima de todo */
-  background: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 4vh 6vw;
-}
-
-#orientation-warning.hidden {
-  display: none;
-}
-
-.orientation-text {
-  color: #f2f2f2;
-  font-family: 'Courier New', monospace;
-  font-weight: bold;
-  font-size: clamp(22px, 7vw, 48px);
-  letter-spacing: 0.12em;
-  text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
-  text-transform: uppercase;
+  /* Botones algo más juntos dentro de cada grupo (DPAD y A/B). */
+  #mobile-controls .mc-left,
+  #mobile-controls .mc-right {
+    gap: 1vw;
+  }
 }
 
 /* ===== Pantalla inicial ===== */
@@ -340,8 +268,6 @@ html, body {
   left: 0;
   width: 100vw;
   height: 100vh;
-  height: 100dvh;                /* Safari móvil: contar la barra dinámica */
-  min-height: 100dvh;
   z-index: 10;
   display: flex;
   flex-direction: column;
@@ -358,10 +284,7 @@ html, body {
 
 #game-title {
   width: min(70vw, 720px);
-  max-height: 40vh;
   height: auto;
-  object-fit: contain;
-  flex-shrink: 1;                /* El logo cede tamaño antes que el Play */
   user-select: none;
   -webkit-user-drag: none;
 }
@@ -369,7 +292,6 @@ html, body {
 #play-button {
   width: min(14vw, 150px);
   height: auto;
-  flex-shrink: 0;                /* El Play nunca se reduce ni desaparece */
   cursor: pointer;
   transition: transform 0.12s ease-out;
   user-select: none;
@@ -384,16 +306,8 @@ html, body {
   transform: scale(0.98);
 }
 
-/* En móvil: logo más pequeño, padding reducido, play más grande */
+/* En móvil, el play button puede ser más grande */
 @media (hover: none) and (pointer: coarse) {
-  #start-screen {
-    padding: 2vh 4vw;
-    gap: 3vh;
-  }
-  #game-title {
-    width: min(80vw, 480px);
-    max-height: 28vh;
-  }
   #play-button {
     width: min(28vw, 200px);
   }

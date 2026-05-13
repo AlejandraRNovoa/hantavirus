@@ -66,7 +66,7 @@ const DOOR_WORLD_X     = 3000;
 const DOOR_Y_RATIO     = 0.18;
 const DOOR_ZONE_WIDTH_RATIO = 0.10;
 
-const DOOR_ARROW_OFFSET_X_VH = 0.45;
+const DOOR_ARROW_OFFSET_X_VH = 0.88;
 const DOOR_ARROW_OFFSET_Y_VH = -0.04;
 
 // Debug
@@ -762,11 +762,14 @@ function setSprite(src) {
     state.currentSrc = src;
     requestAnimationFrame(() => {
       measureSpriteHeight();
+      // Si NO está saltando: recalcular suelo y reapoyar.
+      // Si SÍ está saltando: NO tocar groundY; cambiar groundY a mitad de salto
+      // con la altura del sprite nuevo invalida la coordenada Y en curso y puede
+      // cancelar el salto inmediatamente (bug observado tras cambios responsive).
+      // groundY se recalculará al aterrizar y en cada resize/applyPlayerSize.
       if (!state.isJumping) {
         state.groundY = getFloorY();
         state.y = state.groundY;
-      } else {
-        state.groundY = getFloorY();
       }
     });
   }
@@ -786,11 +789,11 @@ function setRatSprite(src) {
 // --- Bucle principal ---
 // Gate de 60 FPS: en móviles a 90/120 Hz, rAF dispara más rápido que en desktop a 60 Hz.
 // Como el movimiento es per-frame (no escalado por delta), eso aceleraría el juego.
-// Saltamos frames hasta que haya pasado al menos ~16.67 ms desde el último frame procesado.
-// No se modifica ninguna constante de velocidad; sólo se uniforma el ritmo del loop.
-const TARGET_FRAME_MS = 1000 / 60;
-// Pequeño margen para no saltar el frame "justo a tiempo" en monitores de 60Hz.
-const FRAME_GATE_TOLERANCE = 1;
+// Usamos un umbral por debajo del frame de 60 Hz (16.67 ms) con margen suficiente
+// para absorber el jitter natural del rAF en desktop. Si el delta es claramente menor
+// (móviles a 120 Hz dan ~8 ms; a 90 Hz, ~11 ms), saltamos el frame.
+// No se modifica ninguna constante de velocidad.
+const FRAME_GATE_MIN_MS = 14;
 
 function loop(now) {
   if (isPaused || isTransitioning || orientationBlocked) {
@@ -800,7 +803,8 @@ function loop(now) {
 
   // Gate de 60 FPS: si no ha pasado suficiente tiempo desde el último frame procesado,
   // saltar este frame sin actualizar lastTime ni mover nada.
-  if ((now - lastTime) < (TARGET_FRAME_MS - FRAME_GATE_TOLERANCE)) {
+  // Umbral 14 ms: pasa siempre en 60 Hz (delta ~16-17 ms), bloquea en 90/120 Hz.
+  if ((now - lastTime) < FRAME_GATE_MIN_MS) {
     requestAnimationFrame(loop);
     return;
   }
@@ -896,6 +900,9 @@ function loop(now) {
     state.velocityY += GRAVITY;
     state.y += state.velocityY;
     if (state.y >= state.groundY) {
+      // Aterrizaje: recalcular groundY con el sprite actual y reapoyar.
+      // (Durante el salto no se recalcula para evitar cancelar el impulso.)
+      state.groundY = getFloorY();
       state.y = state.groundY;
       state.isJumping = false;
       state.velocityY = 0;
