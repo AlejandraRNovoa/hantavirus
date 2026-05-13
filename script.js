@@ -400,15 +400,19 @@ function useSanitizer() {
   if (lives >= MAX_LIVES) return;
   if (!isPriscilonNearSanitizer()) return;
 
-  sanitizerUsed = true;
-  lives += 1;
-  updateHud();
-  sanitizerEl.classList.add('hidden');
-
+  // Disparar el sonido ANTES de tocar el DOM para que se sienta instantáneo
+  // y sincronizado con el contacto visual. updateHud() y classList.add() son
+  // baratos pero pueden costar varios ms en móvil; al adelantar play() se
+  // elimina el desfase percibido sin añadir ningún delay artificial.
   sanitizerAudio.currentTime = 0;
   sanitizerAudio.play().catch(err => {
     console.warn('No se pudo reproducir el sonido del gel:', err);
   });
+
+  sanitizerUsed = true;
+  lives += 1;
+  updateHud();
+  sanitizerEl.classList.add('hidden');
 }
 
 // --- Transición entre escenas ---

@@ -234,30 +234,57 @@ html, body {
 
 /* Mostrar solo en dispositivos táctiles */
 @media (hover: none) and (pointer: coarse) {
-  /* Reservar franja inferior en móvil para que los controles no se solapen con #game.
-     #game-wrapper usa display:flex + align-items:center, así que el padding-bottom
-     reduce el alto efectivo de centrado y empuja el área 16:9 hacia arriba.
-     #game ya hace min(100vh, ...) → al reducir el alto disponible del wrapper,
-     #game encoge proporcionalmente manteniendo 16:9 y aparece franja negra
-     superior e inferior. Los controles fixed:bottom:0 quedan en la franja inferior. */
-  #game-wrapper {
-    padding-bottom: calc(clamp(70px, 15vw, 120px) + 4vh + env(safe-area-inset-bottom, 0px));
+  :root {
+    /* Franja negra inferior más baja para que el juego ocupe más pantalla. */
+    --mobile-controls-height: clamp(82px, 18dvh, 110px);
   }
 
+  /* Wrapper ocupa solo la zona superior; debajo queda la franja para controles. */
+  #game-wrapper {
+    height: calc(100dvh - var(--mobile-controls-height));
+  }
+
+  /* #game debe escalar contra la altura del wrapper (no del viewport),
+     o si no, seguiría usando 100vh y volvería a invadir la franja inferior. */
+  #game {
+    width: min(100vw, calc((100dvh - var(--mobile-controls-height)) * 16 / 9));
+    height: min(calc(100dvh - var(--mobile-controls-height)), calc(100vw * 9 / 16));
+  }
+
+  /* Franja negra inferior real, con los controles dentro. */
   #mobile-controls {
     display: flex;
-    /* Más pegados a bordes y fondo, respetando safe-area de iPhone (notch/home indicator). */
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: var(--mobile-controls-height);
+    background: #000;
+    pointer-events: none;          /* Solo los botones reciben pointer. */
+    align-items: center;
+    justify-content: space-between;
+    /* Padding lateral generoso para que DPAD y A/B no queden cortados,
+       y padding-bottom para safe-area + un pelín de separación del borde. */
     padding:
-      1vh
-      calc(1.5vw + env(safe-area-inset-right, 0px))
-      calc(1vh + env(safe-area-inset-bottom, 0px))
-      calc(1.5vw + env(safe-area-inset-left, 0px));
+      0
+      calc(3vw + env(safe-area-inset-right, 0px))
+      calc(4px + env(safe-area-inset-bottom, 0px))
+      calc(3vw + env(safe-area-inset-left, 0px));
   }
 
-  /* Botones algo más juntos dentro de cada grupo (DPAD y A/B). */
+  /* Grupos de botones. */
   #mobile-controls .mc-left,
   #mobile-controls .mc-right {
-    gap: 1vw;
+    gap: 2vw;
+    pointer-events: auto;
+  }
+
+  /* Botones reducidos: pequeños y cómodos, dentro de la franja. */
+  #mobile-controls .mc-btn {
+    width: clamp(46px, 10vw, 62px);
+    height: clamp(46px, 10vw, 62px);
+    font-size: clamp(14px, 3.5vw, 22px);
   }
 }
 
