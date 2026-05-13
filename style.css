@@ -235,8 +235,8 @@ html, body {
 /* Mostrar solo en dispositivos táctiles */
 @media (hover: none) and (pointer: coarse) {
   :root {
-    /* Franja negra inferior más baja para que el juego ocupe más pantalla. */
-    --mobile-controls-height: clamp(82px, 18dvh, 110px);
+    /* Franja negra inferior compacta para que el juego ocupe más pantalla. */
+    --mobile-controls-height: clamp(72px, 14dvh, 96px);
   }
 
   /* Wrapper ocupa solo la zona superior; debajo queda la franja para controles. */
@@ -273,18 +273,68 @@ html, body {
       calc(3vw + env(safe-area-inset-left, 0px));
   }
 
-  /* Grupos de botones. */
+  /* Grupos de botones: ambos en fila horizontal compacta.
+     DPAD (4 flechas) abajo-izquierda, A/B/C abajo-derecha.
+     No es cruceta — solución estable; cruceta dedicada va aparte. */
   #mobile-controls .mc-left,
   #mobile-controls .mc-right {
-    gap: 2vw;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
     pointer-events: auto;
   }
 
-  /* Botones reducidos: pequeños y cómodos, dentro de la franja. */
+  /* mc-dpad es un wrapper interno con los 4 botones en fila. */
+  #mobile-controls .mc-dpad {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+  }
+
+  #mobile-controls .mc-right {
+    gap: 6px;
+  }
+
+  /* Botones reducidos: caben en la franja sin desbordar verticalmente,
+     y dejan margen horizontal de sobra incluso en landscape estrecho. */
   #mobile-controls .mc-btn {
-    width: clamp(46px, 10vw, 62px);
-    height: clamp(46px, 10vw, 62px);
+    width: clamp(38px, 7vw, 52px);
+    height: clamp(38px, 7vw, 52px);
     font-size: clamp(14px, 3.5vw, 22px);
+  }
+
+  /* Las imágenes dentro de los botones deben caber sin desbordar. */
+  #mobile-controls .mc-btn img {
+    width: 70%;
+    height: 70%;
+    object-fit: contain;
+    pointer-events: none;
+  }
+
+  /* === Fix 1: overlays móviles con 100dvh ===
+     Sin esto, Safari iOS centra usando la altura "grande" del viewport
+     (con barras incluidas) y el Play queda fuera del área visible. */
+  #start-screen,
+  #pause-screen,
+  #game-over,
+  #fade-screen {
+    height: 100dvh;
+  }
+
+  /* === Fix 2: logo limitado en móvil ===
+     Topar por altura además de por anchura para que no aplaste al Play
+     ni tape al personaje en landscape. */
+  #game-title {
+    width: auto;
+    max-width: 60vw;
+    max-height: 28dvh;
+  }
+
+  /* Reducir gap/padding del start-screen en móvil para no comerse el Play. */
+  #start-screen {
+    gap: 2dvh;
+    padding: 2dvh 4vw;
   }
 }
 
