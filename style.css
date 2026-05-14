@@ -235,20 +235,30 @@ html, body {
 /* Mostrar solo en dispositivos táctiles */
 @media (hover: none) and (pointer: coarse) {
   :root {
-    /* Franja negra inferior compacta para que el juego ocupe más pantalla. */
-    --mobile-controls-height: clamp(72px, 14dvh, 96px);
+    /* Altura móvil estable. JS setea --mobile-stable-vh en load,
+       orientationchange y resize con debounce. NUNCA reactivo a la
+       barra de URL de Safari. 100dvh queda como fallback antes de que
+       el JS corra. */
+    --mobile-vh: var(--mobile-stable-vh, 100dvh);
+
+    /* Franja negra inferior compacta para que el juego ocupe más pantalla.
+       Calculada a partir de --mobile-vh para que no oscile con la barra
+       de Safari. clamp() sigue siendo correcto: limita el valor en px. */
+    --mobile-controls-height: clamp(72px, calc(var(--mobile-vh) * 0.14), 96px);
   }
 
-  /* Wrapper ocupa solo la zona superior; debajo queda la franja para controles. */
+  /* Wrapper ocupa solo la zona superior; debajo queda la franja para controles.
+     Usa --mobile-vh estable en lugar de 100dvh para evitar el flicker
+     horizontal que provoca el reescalado del background. */
   #game-wrapper {
-    height: calc(100dvh - var(--mobile-controls-height));
+    height: calc(var(--mobile-vh) - var(--mobile-controls-height));
   }
 
   /* #game debe escalar contra la altura del wrapper (no del viewport),
      o si no, seguiría usando 100vh y volvería a invadir la franja inferior. */
   #game {
-    width: min(100vw, calc((100dvh - var(--mobile-controls-height)) * 16 / 9));
-    height: min(calc(100dvh - var(--mobile-controls-height)), calc(100vw * 9 / 16));
+    width: min(100vw, calc((var(--mobile-vh) - var(--mobile-controls-height)) * 16 / 9));
+    height: min(calc(var(--mobile-vh) - var(--mobile-controls-height)), calc(100vw * 9 / 16));
   }
 
   /* Franja negra inferior real, con los controles dentro. */
@@ -312,30 +322,30 @@ html, body {
     pointer-events: none;
   }
 
-  /* === Fix 1 (revisado): overlays móviles ===
-     Solo #start-screen necesita 100dvh para que el botón Play quede dentro
-     del área visible de Safari iOS. Los demás overlays (#fade-screen,
-     #pause-screen, #game-over) se quedan en 100vh porque usar dvh ahí
-     causaba flicker durante el loop: dvh se recalcula cuando la barra
-     de Safari aparece/desaparece, y esos overlays comparten composición
-     con #game, forzando repintados en cascada. */
+  /* === Overlays móviles ===
+     #start-screen usa --mobile-vh estable para que el Play quede dentro
+     del área visible sin temblar. #fade-screen, #pause-screen y #game-over
+     se quedan en 100vh heredado: no necesitan precisión y así evitamos
+     cualquier dependencia adicional de dvh durante el loop. */
   #start-screen {
-    height: 100dvh;
+    height: var(--mobile-vh);
   }
 
-  /* === Fix 2: logo limitado en móvil ===
-     Topar por altura además de por anchura para que no aplaste al Play
-     ni tape al personaje en landscape. */
+  /* === Logo móvil ===
+     Subido un poco respecto al ajuste anterior: 70vw de ancho y 34% de
+     altura estable. Calculado con --mobile-vh para no temblar con la
+     barra de Safari. */
   #game-title {
     width: auto;
-    max-width: 60vw;
-    max-height: 28dvh;
+    max-width: 70vw;
+    max-height: calc(var(--mobile-vh) * 0.34);
   }
 
-  /* Reducir gap/padding del start-screen en móvil para no comerse el Play. */
+  /* Reducir gap/padding del start-screen en móvil para no comerse el Play.
+     Basado en --mobile-vh estable. */
   #start-screen {
-    gap: 2dvh;
-    padding: 2dvh 4vw;
+    gap: calc(var(--mobile-vh) * 0.02);
+    padding: calc(var(--mobile-vh) * 0.02) 4vw;
   }
 }
 
