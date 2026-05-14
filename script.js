@@ -626,6 +626,13 @@ if (mobileCtrls) {
 
     const press = (ev) => {
       ev.preventDefault();
+      // Capturar el puntero para que el dedo quede "pegado" a este botón
+      // aunque se mueva sobre botones adyacentes o el botón cambie de tamaño
+      // por :active. Esto evita el reparto fantasma de eventos entre botones
+      // del DPAD que provoca oscilación de keys.ArrowLeft/Right en Safari móvil.
+      if (btn.setPointerCapture) {
+        try { btn.setPointerCapture(ev.pointerId); } catch (_) {}
+      }
       btn.classList.add('pressed');
       if (isTransitioning) return;
 
@@ -663,6 +670,11 @@ if (mobileCtrls) {
 
     const release = (ev) => {
       ev.preventDefault();
+      // Liberar el pointer capture si está activo. try/catch porque puede
+      // fallar silenciosamente si el evento no tenía capture activo.
+      if (btn.releasePointerCapture) {
+        try { btn.releasePointerCapture(ev.pointerId); } catch (_) {}
+      }
       btn.classList.remove('pressed');
 
       if (action === 'action') {
@@ -679,7 +691,12 @@ if (mobileCtrls) {
     btn.addEventListener('pointerdown', press);
     btn.addEventListener('pointerup', release);
     btn.addEventListener('pointercancel', release);
-    btn.addEventListener('pointerleave', release);
+    // NOTA: pointerleave eliminado intencionalmente. Provocaba que el dedo,
+    // al ser empujado fuera del botón por transform:scale(0.96) de :active,
+    // soltase la tecla y luego se reactivara. Combinado con setPointerCapture
+    // de arriba, el dedo queda firmemente "pegado" al botón inicial hasta
+    // que el usuario levanta el dedo (pointerup) o el sistema cancela
+    // (pointercancel).
     btn.addEventListener('click', (e) => e.preventDefault());
     btn.addEventListener('contextmenu', (e) => e.preventDefault());
   });
@@ -988,22 +1005,16 @@ requestAnimationFrame(loop);
 // que han cambiado respecto a la medición anterior. Si nada cambia,
 // loguea "layout estable".
 //
-// Activación: automática en móvil/touch, O manual añadiendo ?diag=1 a la URL
-// para forzarlo en cualquier navegador (útil para probar en desktop también).
-//
+// Activación: automática en móvil/touch, O manual añadiendo ?diag=1 a la URL.
 // Para desactivar: cambiar DIAGNOSTIC_ENABLED a false o eliminar este bloque.
 // ==========================================================================
 
-// Log incondicional para verificar que el script llegó al final sin romperse.
-// Si NO ves esto en la consola, el problema es de carga (404 en script.js,
-// error de sintaxis arriba, o caché agresivo de Safari).
 console.log('[DIAG BOOT] script cargado');
 
 (function () {
   const DIAGNOSTIC_ENABLED = true;
   const DIAGNOSTIC_INTERVAL_MS = 300;
 
-  // Detectar activadores
   const mqMatches = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
   const urlHasDiag = (() => {
     try {
@@ -1013,8 +1024,6 @@ console.log('[DIAG BOOT] script cargado');
     }
   })();
 
-  // Log incondicional del estado del media query y del entorno.
-  // Esto ayuda a entender por qué (o por qué no) se activa el diagnóstico.
   console.log('[DIAG MQ]', {
     hoverNonePointerCoarse: mqMatches,
     urlHasDiag: urlHasDiag,
@@ -1043,19 +1052,14 @@ console.log('[DIAG BOOT] script cargado');
     return;
   }
 
-  // Decimales redondeados a 2 para que cambios subpixel reales sean visibles
-  // pero el ruido absoluto de getBoundingClientRect no llene la consola.
   function r2(n) { return Math.round(n * 100) / 100; }
 
   function snapshotRect(el) {
     const r = el.getBoundingClientRect();
     return {
-      x: r2(r.x),
-      y: r2(r.y),
-      w: r2(r.width),
-      h: r2(r.height),
-      top: r2(r.top),
-      left: r2(r.left)
+      x: r2(r.x), y: r2(r.y),
+      w: r2(r.width), h: r2(r.height),
+      top: r2(r.top), left: r2(r.left)
     };
   }
 
@@ -1065,28 +1069,20 @@ console.log('[DIAG BOOT] script cargado');
     const cs_bg      = getComputedStyle(bgEl);
 
     return {
-      // 1-4: viewport del navegador
       innerW:        window.innerWidth,
       innerH:        window.innerHeight,
       docClientW:    document.documentElement.clientWidth,
       docClientH:    document.documentElement.clientHeight,
-      // 5-7: bounding rects
       wrapperRect:   snapshotRect(wrapperEl),
       gameRect:      snapshotRect(gameEl),
       bgRect:        snapshotRect(bgEl),
-      // 8: background-position-x inline (lo escribe el JS en cada frame)
       bgPosX_inline: bgEl.style.backgroundPositionX || '(unset)',
-      // 9: background-size computado
       bgSize:        cs_bg.backgroundSize,
-      // 9b: background-position computado (lo que realmente aplica el browser)
       bgPos:         cs_bg.backgroundPosition,
-      // 10: estilo computado de #game
       gameCS_w:      cs_game.width,
       gameCS_h:      cs_game.height,
-      // 11: estilo computado de #game-wrapper
       wrapperCS_w:   cs_wrapper.width,
       wrapperCS_h:   cs_wrapper.height,
-      // Extras de interés: transform y scroll del root
       docScrollX:    window.scrollX,
       docScrollY:    window.scrollY,
       gameTransform: cs_game.transform,
@@ -1094,8 +1090,6 @@ console.log('[DIAG BOOT] script cargado');
     };
   }
 
-  // Comparar dos snapshots y devolver objeto con SOLO las claves que cambian.
-  // Para campos que son objetos (rects), compara sub-claves.
   function diff(prev, curr) {
     const out = {};
     for (const key of Object.keys(curr)) {
@@ -1144,16 +1138,14 @@ console.log('[DIAG BOOT] script cargado');
     prev = curr;
   }
 
-  console.log('[DIAG START] mobileeeee layout diagnostic activo. Intervalo: ' +
+  console.log('[DIAG START] mobile layout diagnostic activo. Intervalo: ' +
               DIAGNOSTIC_INTERVAL_MS + 'ms. Activado por: ' +
               (mqMatches ? 'media query touch' : '') +
               (mqMatches && urlHasDiag ? ' + ' : '') +
               (urlHasDiag ? '?diag=1' : ''));
 
-  // Esperar 1 frame antes de la primera medición para que el layout
-  // inicial esté asentado.
   requestAnimationFrame(() => {
-    tick(); // baseline
+    tick();
     setInterval(tick, DIAGNOSTIC_INTERVAL_MS);
   });
 })();
