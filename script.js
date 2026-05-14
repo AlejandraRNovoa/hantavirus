@@ -979,3 +979,143 @@ function loop(now) {
 }
 
 requestAnimationFrame(loop);
+
+// ==========================================================================
+// DIAGNÓSTICO DE LAYOUT MÓVIL — TEMPORAL
+// --------------------------------------------------------------------------
+// Mide cada 300ms valores que pueden estar provocando el temblor lateral
+// en Safari móvil. NO modifica nada, solo lee. Loguea SOLO los valores
+// que han cambiado respecto a la medición anterior. Si nada cambia,
+// loguea "layout estable".
+//
+// Para desactivar: cambiar DIAGNOSTIC_ENABLED a false o eliminar este
+// bloque por completo. No depende de ninguna variable externa del juego.
+// ==========================================================================
+(function () {
+  const DIAGNOSTIC_ENABLED = true;
+  const DIAGNOSTIC_INTERVAL_MS = 300;
+  // Solo en móvil/touch para no contaminar la consola en desktop.
+  const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+  if (!DIAGNOSTIC_ENABLED || !isTouch) return;
+
+  const wrapperEl = document.getElementById('game-wrapper');
+  const gameEl    = document.getElementById('game');
+  const bgEl      = document.getElementById('background');
+
+  if (!wrapperEl || !gameEl || !bgEl) {
+    console.warn('[DIAG] No se encontró alguno de los elementos clave. Abortando diagnóstico.');
+    return;
+  }
+
+  // Decimales redondeados a 2 para que cambios subpixel reales sean visibles
+  // pero el ruido absoluto de getBoundingClientRect no llene la consola.
+  function r2(n) { return Math.round(n * 100) / 100; }
+
+  function snapshotRect(el) {
+    const r = el.getBoundingClientRect();
+    return {
+      x: r2(r.x),
+      y: r2(r.y),
+      w: r2(r.width),
+      h: r2(r.height),
+      top: r2(r.top),
+      left: r2(r.left)
+    };
+  }
+
+  function snapshot() {
+    const cs_game    = getComputedStyle(gameEl);
+    const cs_wrapper = getComputedStyle(wrapperEl);
+    const cs_bg      = getComputedStyle(bgEl);
+
+    return {
+      // 1-4: viewport del navegador
+      innerW:        window.innerWidth,
+      innerH:        window.innerHeight,
+      docClientW:    document.documentElement.clientWidth,
+      docClientH:    document.documentElement.clientHeight,
+      // 5-7: bounding rects
+      wrapperRect:   snapshotRect(wrapperEl),
+      gameRect:      snapshotRect(gameEl),
+      bgRect:        snapshotRect(bgEl),
+      // 8: background-position-x inline (lo escribe el JS en cada frame)
+      bgPosX_inline: bgEl.style.backgroundPositionX || '(unset)',
+      // 9: background-size computado
+      bgSize:        cs_bg.backgroundSize,
+      // 9b: background-position computado (lo que realmente aplica el browser)
+      bgPos:         cs_bg.backgroundPosition,
+      // 10: estilo computado de #game
+      gameCS_w:      cs_game.width,
+      gameCS_h:      cs_game.height,
+      // 11: estilo computado de #game-wrapper
+      wrapperCS_w:   cs_wrapper.width,
+      wrapperCS_h:   cs_wrapper.height,
+      // Extras de interés: transform y scroll del root
+      docScrollX:    window.scrollX,
+      docScrollY:    window.scrollY,
+      gameTransform: cs_game.transform,
+      bgTransform:   cs_bg.transform
+    };
+  }
+
+  // Comparar dos snapshots y devolver objeto con SOLO las claves que cambian.
+  // Para campos que son objetos (rects), compara sub-claves.
+  function diff(prev, curr) {
+    const out = {};
+    for (const key of Object.keys(curr)) {
+      const a = prev[key];
+      const b = curr[key];
+      if (a && typeof a === 'object' && b && typeof b === 'object') {
+        const subOut = {};
+        let changed = false;
+        for (const k of Object.keys(b)) {
+          if (a[k] !== b[k]) {
+            subOut[k] = { from: a[k], to: b[k] };
+            changed = true;
+          }
+        }
+        if (changed) out[key] = subOut;
+      } else if (a !== b) {
+        out[key] = { from: a, to: b };
+      }
+    }
+    return out;
+  }
+
+  let prev = null;
+  let tickCount = 0;
+
+  function tick() {
+    tickCount++;
+    const curr = snapshot();
+
+    if (prev === null) {
+      console.log('[DIAG #' + tickCount + '] snapshot inicial:', curr);
+      prev = curr;
+      return;
+    }
+
+    const d = diff(prev, curr);
+    const keys = Object.keys(d);
+
+    if (keys.length === 0) {
+      console.log('[DIAG #' + tickCount + '] layout estable');
+    } else {
+      // Resumir qué tipo de cambio para escanear visualmente la consola rápido.
+      const summary = keys.join(', ');
+      console.log('[DIAG #' + tickCount + '] CAMBIA → ' + summary, d);
+    }
+
+    prev = curr;
+  }
+
+  // Esperar 1 frame antes de la primera medición para que el layout
+  // inicial esté asentado.
+  requestAnimationFrame(() => {
+    tick(); // baseline
+    setInterval(tick, DIAGNOSTIC_INTERVAL_MS);
+  });
+
+  console.log('[DIAG] Diagnósticooo de layout móvil ACTIVO. Intervalo: ' +
+              DIAGNOSTIC_INTERVAL_MS + 'ms. Solo logs móviles.');
+})();
