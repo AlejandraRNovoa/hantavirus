@@ -312,13 +312,14 @@ html, body {
     pointer-events: none;
   }
 
-  /* === Fix 1: overlays móviles con 100dvh ===
-     Sin esto, Safari iOS centra usando la altura "grande" del viewport
-     (con barras incluidas) y el Play queda fuera del área visible. */
-  #start-screen,
-  #pause-screen,
-  #game-over,
-  #fade-screen {
+  /* === Fix 1 (revisado): overlays móviles ===
+     Solo #start-screen necesita 100dvh para que el botón Play quede dentro
+     del área visible de Safari iOS. Los demás overlays (#fade-screen,
+     #pause-screen, #game-over) se quedan en 100vh porque usar dvh ahí
+     causaba flicker durante el loop: dvh se recalcula cuando la barra
+     de Safari aparece/desaparece, y esos overlays comparten composición
+     con #game, forzando repintados en cascada. */
+  #start-screen {
     height: 100dvh;
   }
 
