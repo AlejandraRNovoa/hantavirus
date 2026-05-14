@@ -988,22 +988,58 @@ requestAnimationFrame(loop);
 // que han cambiado respecto a la medición anterior. Si nada cambia,
 // loguea "layout estable".
 //
-// Para desactivar: cambiar DIAGNOSTIC_ENABLED a false o eliminar este
-// bloque por completo. No depende de ninguna variable externa del juego.
+// Activación: automática en móvil/touch, O manual añadiendo ?diag=1 a la URL
+// para forzarlo en cualquier navegador (útil para probar en desktop también).
+//
+// Para desactivar: cambiar DIAGNOSTIC_ENABLED a false o eliminar este bloque.
 // ==========================================================================
+
+// Log incondicional para verificar que el script llegó al final sin romperse.
+// Si NO ves esto en la consola, el problema es de carga (404 en script.js,
+// error de sintaxis arriba, o caché agresivo de Safari).
+console.log('[DIAG BOOT] script cargado');
+
 (function () {
   const DIAGNOSTIC_ENABLED = true;
   const DIAGNOSTIC_INTERVAL_MS = 300;
-  // Solo en móvil/touch para no contaminar la consola en desktop.
-  const isTouch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
-  if (!DIAGNOSTIC_ENABLED || !isTouch) return;
+
+  // Detectar activadores
+  const mqMatches = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+  const urlHasDiag = (() => {
+    try {
+      return new URLSearchParams(window.location.search).get('diag') === '1';
+    } catch (e) {
+      return false;
+    }
+  })();
+
+  // Log incondicional del estado del media query y del entorno.
+  // Esto ayuda a entender por qué (o por qué no) se activa el diagnóstico.
+  console.log('[DIAG MQ]', {
+    hoverNonePointerCoarse: mqMatches,
+    urlHasDiag: urlHasDiag,
+    userAgent: navigator.userAgent,
+    innerWidth: window.innerWidth,
+    innerHeight: window.innerHeight
+  });
+
+  if (!DIAGNOSTIC_ENABLED) {
+    console.log('[DIAG] DIAGNOSTIC_ENABLED = false, no se inicia.');
+    return;
+  }
+
+  if (!mqMatches && !urlHasDiag) {
+    console.log('[DIAG] No se activa: no es touch y no hay ?diag=1 en la URL.');
+    return;
+  }
 
   const wrapperEl = document.getElementById('game-wrapper');
   const gameEl    = document.getElementById('game');
   const bgEl      = document.getElementById('background');
 
   if (!wrapperEl || !gameEl || !bgEl) {
-    console.warn('[DIAG] No se encontró alguno de los elementos clave. Abortando diagnóstico.');
+    console.warn('[DIAG] No se encontró alguno de los elementos clave:',
+      { wrapper: !!wrapperEl, game: !!gameEl, bg: !!bgEl });
     return;
   }
 
@@ -1101,7 +1137,6 @@ requestAnimationFrame(loop);
     if (keys.length === 0) {
       console.log('[DIAG #' + tickCount + '] layout estable');
     } else {
-      // Resumir qué tipo de cambio para escanear visualmente la consola rápido.
       const summary = keys.join(', ');
       console.log('[DIAG #' + tickCount + '] CAMBIA → ' + summary, d);
     }
@@ -1109,13 +1144,16 @@ requestAnimationFrame(loop);
     prev = curr;
   }
 
+  console.log('[DIAG START] mobileeeee layout diagnostic activo. Intervalo: ' +
+              DIAGNOSTIC_INTERVAL_MS + 'ms. Activado por: ' +
+              (mqMatches ? 'media query touch' : '') +
+              (mqMatches && urlHasDiag ? ' + ' : '') +
+              (urlHasDiag ? '?diag=1' : ''));
+
   // Esperar 1 frame antes de la primera medición para que el layout
   // inicial esté asentado.
   requestAnimationFrame(() => {
     tick(); // baseline
     setInterval(tick, DIAGNOSTIC_INTERVAL_MS);
   });
-
-  console.log('[DIAG] Diagnósticooo de layout móvil ACTIVO. Intervalo: ' +
-              DIAGNOSTIC_INTERVAL_MS + 'ms. Solo logs móviles.');
 })();
